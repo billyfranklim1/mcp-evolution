@@ -1,17 +1,24 @@
 {
   "name": "mcp-evolution",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "MCP server for Evolution API (WhatsApp) with instance pinning",
   "type": "module",
-  "main": "server.js",
-  "scripts": {
-    "start": "node server.js"
+  "main": "dist/index.js",
+  "bin": {
+    "mcp-evolution": "dist/index.js"
   },
   "files": [
-    "server.js",
+    "dist",
     "README.md",
     "LICENSE"
   ],
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "test": "vitest run",
+    "prepublishOnly": "npm run build"
+  },
   "engines": {
     "node": ">=18"
   },
@@ -32,6 +39,13 @@
   },
   "homepage": "https://github.com/billyfranklim1/mcp-evolution#readme",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.0"
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.0"
   }
 }

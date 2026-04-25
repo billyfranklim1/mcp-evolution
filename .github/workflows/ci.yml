@@ -24,5 +24,8 @@ jobs:
 
       - run: npm ci
 
-      - name: Syntax check
-        run: node --check server.js
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm test

@@ -4,17 +4,17 @@
 [![license](https://img.shields.io/npm/l/mcp-evolution.svg)](./LICENSE)
 [![CI](https://github.com/billyfranklim1/mcp-evolution/actions/workflows/ci.yml/badge.svg)](https://github.com/billyfranklim1/mcp-evolution/actions/workflows/ci.yml)
 
-MCP server for [Evolution API](https://github.com/EvolutionAPI/evolution-api) (WhatsApp) with instance pinning.
+TypeScript MCP server for [Evolution API](https://github.com/EvolutionAPI/evolution-api) (WhatsApp) with instance pinning.
 
-## What it is
+## Architecture
 
-`mcp-evolution` is a [Model Context Protocol](https://modelcontextprotocol.io) server that wraps Evolution API v2 and exposes a set of safe WhatsApp tools to any MCP-compatible AI client (Claude Desktop, Claude Code, custom agents, etc.).
+This server implements the [Model Context Protocol](https://modelcontextprotocol.io):
 
-The server is **instance-pinned**: all three connection parameters (API URL, API key, and instance name) are fixed at startup via environment variables. This means the AI caller cannot accidentally address a different WhatsApp number or instance — every tool call goes to exactly one pre-configured instance.
+- **Transport**: stdio — the MCP host (Claude Desktop, Claude Code, etc.) spawns this process and speaks JSON-RPC over stdin/stdout.
+- **Server**: uses the high-level `McpServer` class from the official TypeScript SDK, which handles capability negotiation and session lifecycle automatically.
+- **Tools**: eight tools registered via `registerTool()` with Zod-validated input schemas — the SDK enforces types before the handler runs.
 
-## Why pinning matters
-
-In multi-tenant or shared environments, a generic Evolution API tool could let a caller switch instances mid-conversation and leak messages or send to unintended recipients. By pinning at startup, `mcp-evolution` acts as a single-purpose gateway — safe to hand to an AI agent without guardrails around instance selection.
+All three connection parameters (API URL, API key, instance name) are pinned at startup via environment variables. The AI caller cannot switch instances mid-conversation.
 
 ## Tools
 
@@ -23,56 +23,41 @@ In multi-tenant or shared environments, a generic Evolution API tool could let a
 | `list_groups` | List all WhatsApp groups for the pinned instance |
 | `find_chats` | Find chats, optionally filtered with a Prisma-style `where` clause |
 | `find_contacts` | Find contacts, optionally filtered with a Prisma-style `where` clause |
-| `find_messages` | Find messages by remoteJid (phone number or group JID) |
+| `find_messages` | Find messages by remoteJid with optional limit |
 | `get_chat_history` | Get message history for a contact or group JID |
 | `send_text` | Send a plain text message |
 | `send_media` | Send an image, video, audio, or document |
 | `get_group_info` | Get detailed info for a specific group by JID |
 
-## Install
+## Install & run via npx
 
 ```bash
-git clone https://github.com/billyfranklim1/mcp-evolution.git
-cd mcp-evolution
-npm install
+EVOLUTION_API_URL=http://localhost:8080 \
+EVOLUTION_API_KEY=your-key \
+EVOLUTION_INSTANCE=your-instance \
+npx mcp-evolution
 ```
 
-## Configure
+## Configuration
 
-Copy `.env.example` to `.env` and fill in your values:
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `EVOLUTION_API_URL` | Yes | Base URL of your Evolution API (e.g. `http://localhost:8080`) |
+| `EVOLUTION_API_KEY` | Yes | Global API key from Evolution API config |
+| `EVOLUTION_INSTANCE` | Yes | Instance name created in Evolution API |
 
-```bash
-cp .env.example .env
-```
-
-```env
-EVOLUTION_API_URL=http://localhost:8080   # URL of your Evolution API instance
-EVOLUTION_API_KEY=your-evolution-api-key  # Global API key from Evolution API config
-EVOLUTION_INSTANCE=your-instance-name     # The instance name you created in Evolution API
-```
-
-## Run standalone
-
-```bash
-node server.js
-```
-
-The server starts on stdio and prints a confirmation to stderr:
-
-```
-mcp-evolution started (instance: your-instance-name)
-```
+Copy `.env.example` to `.env` for local development.
 
 ## Use with Claude Desktop / Claude Code
 
-Add to your MCP config (e.g. `~/.claude/claude_desktop_config.json` or project `.mcp.json`):
+Add to `~/.claude/claude_desktop_config.json` or project `.mcp.json`:
 
 ```json
 {
   "mcpServers": {
     "whatsapp": {
-      "command": "node",
-      "args": ["/absolute/path/to/mcp-evolution/server.js"],
+      "command": "npx",
+      "args": ["mcp-evolution"],
       "env": {
         "EVOLUTION_API_URL": "http://localhost:8080",
         "EVOLUTION_API_KEY": "your-evolution-api-key",
@@ -83,11 +68,42 @@ Add to your MCP config (e.g. `~/.claude/claude_desktop_config.json` or project `
 }
 ```
 
-Restart Claude Desktop / Claude Code after saving.
+Or point directly at the built binary if running from a local checkout:
 
-## Use with an MCP gateway / OAuth proxy
+```json
+{
+  "mcpServers": {
+    "whatsapp": {
+      "command": "node",
+      "args": ["/absolute/path/to/mcp-evolution/dist/index.js"],
+      "env": {
+        "EVOLUTION_API_URL": "http://localhost:8080",
+        "EVOLUTION_API_KEY": "your-evolution-api-key",
+        "EVOLUTION_INSTANCE": "your-instance-name"
+      }
+    }
+  }
+}
+```
 
-If you run an HTTP MCP gateway (e.g. [mcp-gateway](https://github.com/mcp-ecosystem/mcp-gateway)), you can wrap this stdio server behind it. Set the env vars in the gateway's process environment or secrets manager rather than in the config file. The server itself has no HTTP surface — it only speaks stdio MCP.
+## Development
+
+```bash
+# Install dependencies
+npm install
+
+# Run in dev mode (no build step)
+npm run dev
+
+# Build TypeScript → dist/
+npm run build
+
+# Run tests
+npm test
+
+# Start from built output
+npm start
+```
 
 ## Evolution API endpoints wrapped
 
@@ -101,7 +117,7 @@ If you run an HTTP MCP gateway (e.g. [mcp-gateway](https://github.com/mcp-ecosys
 | `send_media` | POST | `/message/sendMedia/{instance}` |
 | `get_group_info` | GET | `/group/findGroupInfos/{instance}` |
 
-Requires Evolution API v2. Tested against the open-source self-hosted version.
+Requires Evolution API v2.
 
 ## License
 
@@ -109,4 +125,4 @@ MIT — see [LICENSE](LICENSE).
 
 ## Disclaimer
 
-This is community software and is not affiliated with, endorsed by, or supported by the Evolution API project or any WhatsApp entity.
+Community software, not affiliated with Evolution API or any WhatsApp entity.
