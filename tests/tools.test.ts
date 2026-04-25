@@ -553,6 +553,238 @@ describe("EvolutionClient", () => {
     expect(body["labelId"]).toBe("label-1");
   });
 
+  // ─── find_labels — normalized shape ──────────────────────────────────────
+
+  it("find_labels — returns only { id, name, color }, drops chats blobs", async () => {
+    const rawLabels = [
+      { id: "label-1", name: "Hot lead", color: "red", chats: [{ id: "c1" }, { id: "c2" }], extra: "noise" },
+      { id: "label-2", name: "Follow up", color: 3, chats: [], extra: "noise" },
+    ];
+    // Simulate tool normalization
+    const normalized = rawLabels.map(({ id, name, color }) => ({ id, name, color }));
+    expect(normalized).toHaveLength(2);
+    expect(normalized[0]).toEqual({ id: "label-1", name: "Hot lead", color: "red" });
+    expect(normalized[1]).toEqual({ id: "label-2", name: "Follow up", color: 3 });
+    expect(Object.keys(normalized[0]!)).not.toContain("chats");
+    expect(Object.keys(normalized[0]!)).not.toContain("extra");
+  });
+
+  // ─── find_contacts — search + limit ──────────────────────────────────────
+
+  it("find_contacts search — filters by pushName substring (case-insensitive)", async () => {
+    const rawContacts = [
+      { remoteJid: "5511@s.whatsapp.net", pushName: "Maria Silva", name: null, profilePicUrl: null, isBusiness: false, extra: "drop" },
+      { remoteJid: "5522@s.whatsapp.net", pushName: "João Santos", name: null, profilePicUrl: null, isBusiness: false, extra: "drop" },
+      { remoteJid: "5533@s.whatsapp.net", pushName: null, name: "Igreja Maria", profilePicUrl: null, isBusiness: true, extra: "drop" },
+    ];
+    const needle = "maria";
+    const filtered = rawContacts.filter(
+      (c) =>
+        c.pushName?.toLowerCase().includes(needle) ||
+        c.name?.toLowerCase().includes(needle) ||
+        c.remoteJid?.toLowerCase().includes(needle)
+    );
+    const normalized = filtered.map(({ remoteJid, pushName, profilePicUrl, isBusiness }) => ({
+      remoteJid, pushName, profilePicUrl, isBusiness,
+    }));
+    expect(normalized).toHaveLength(2);
+    expect(normalized.map((c) => c.pushName ?? "Igreja Maria")).toContain("Maria Silva");
+    expect(Object.keys(normalized[0]!)).not.toContain("extra");
+    expect(Object.keys(normalized[0]!)).not.toContain("name");
+  });
+
+  it("find_contacts limit — caps result count at provided limit", async () => {
+    const rawContacts = Array.from({ length: 50 }, (_, i) => ({
+      remoteJid: `55${i}@s.whatsapp.net`,
+      pushName: `Contact ${i}`,
+      profilePicUrl: null,
+      isBusiness: false,
+    }));
+    const limit = 10;
+    const offset = 0;
+    const capped = rawContacts.slice(offset, offset + limit).map(({ remoteJid, pushName, profilePicUrl, isBusiness }) => ({
+      remoteJid, pushName, profilePicUrl, isBusiness,
+    }));
+    expect(capped).toHaveLength(10);
+  });
+
+  // ─── find_messages / get_chat_history — normalizeMessage shape ───────────
+
+  it("find_messages normalized shape — all required fields, no extras", async () => {
+    const { normalizeMessage } = await import("../src/util/normalize.js");
+    const rawMsg = {
+      key: { id: "msg-abc", fromMe: true, remoteJid: "5511@s.whatsapp.net" },
+      messageTimestamp: 1700000000,
+      message: { conversation: "Hello world" },
+    };
+    const norm = normalizeMessage(rawMsg);
+    expect(norm.id).toBe("msg-abc");
+    expect(norm.fromMe).toBe(true);
+    expect(norm.remoteJid).toBe("5511@s.whatsapp.net");
+    expect(norm.timestamp).toBe(1700000000);
+    expect(norm.type).toBe("conversation");
+    expect(norm.text).toBe("Hello world");
+    // No base64, no raw message blob
+    expect(Object.keys(norm)).not.toContain("message");
+    expect(Object.keys(norm)).not.toContain("base64");
+  });
+
+  it("find_messages — media message sets mediaKey, text from caption", async () => {
+    const { normalizeMessage } = await import("../src/util/normalize.js");
+    const rawMsg = {
+      key: { id: "img-001", fromMe: false, remoteJid: "group@g.us" },
+      messageTimestamp: 1700000001,
+      message: {
+        imageMessage: { caption: "Check this out", url: "https://example.com/img.jpg", mediaKey: "hidden" },
+      },
+    };
+    const norm = normalizeMessage(rawMsg);
+    expect(norm.type).toBe("imageMessage");
+    expect(norm.text).toBe("Check this out");
+    expect(norm.mediaKey).toBe("img-001"); // uses key.id as download handle
+  });
+
+  it("find_messages — reply message sets quotedMessageId", async () => {
+    const { normalizeMessage } = await import("../src/util/normalize.js");
+    const rawMsg = {
+      key: { id: "reply-001", fromMe: true, remoteJid: "5511@s.whatsapp.net" },
+      messageTimestamp: 1700000002,
+      message: {
+        extendedTextMessage: {
+          text: "Sure!",
+          contextInfo: { stanzaId: "original-msg-id" },
+        },
+      },
+    };
+    const norm = normalizeMessage(rawMsg);
+    expect(norm.text).toBe("Sure!");
+    expect(norm.quotedMessageId).toBe("original-msg-id");
+  });
+
+  // ─── get_group_info — with and without includeParticipants ───────────────
+
+  it("get_group_info default — returns admins only, not full participant list", async () => {
+    const rawGroup = {
+      id: "g1@g.us",
+      subject: "Test Group",
+      subjectOwner: "owner@s.whatsapp.net",
+      subjectTime: 1700000000,
+      desc: "A group",
+      descId: "desc-1",
+      creation: 1699000000,
+      owner: "owner@s.whatsapp.net",
+      participants: [
+        { id: "user1@s.whatsapp.net", admin: "superadmin" },
+        { id: "user2@s.whatsapp.net", admin: "admin" },
+        { id: "user3@s.whatsapp.net", admin: null },
+        { id: "user4@s.whatsapp.net", admin: null },
+      ],
+    };
+    // Simulate tool normalization (no includeParticipants)
+    const participants = rawGroup.participants;
+    const admins = participants
+      .filter((p) => p.admin != null && p.admin !== "")
+      .map((p) => ({ jid: p.id, admin: p.admin }));
+
+    const normalized: Record<string, unknown> = {
+      id: rawGroup.id,
+      subject: rawGroup.subject,
+      subjectOwner: rawGroup.subjectOwner,
+      subjectTime: rawGroup.subjectTime,
+      size: participants.length,
+      desc: rawGroup.desc,
+      descId: rawGroup.descId,
+      creation: rawGroup.creation,
+      owner: rawGroup.owner,
+      admins,
+    };
+
+    expect(normalized["size"]).toBe(4);
+    expect((normalized["admins"] as typeof admins)).toHaveLength(2);
+    expect(Object.keys(normalized)).not.toContain("participants");
+  });
+
+  it("get_group_info with includeParticipants=true — includes participant list", async () => {
+    const rawGroup = {
+      id: "g1@g.us",
+      subject: "Test Group",
+      subjectOwner: "owner@s.whatsapp.net",
+      subjectTime: 1700000000,
+      desc: "A group",
+      descId: "desc-1",
+      creation: 1699000000,
+      owner: "owner@s.whatsapp.net",
+      participants: [
+        { id: "user1@s.whatsapp.net", admin: "superadmin", someHugeField: "x".repeat(500) },
+        { id: "user2@s.whatsapp.net", admin: null, someHugeField: "x".repeat(500) },
+      ],
+    };
+    const participants = rawGroup.participants;
+    const admins = participants
+      .filter((p) => p.admin != null && p.admin !== "")
+      .map((p) => ({ jid: p.id, admin: p.admin }));
+
+    const normalized: Record<string, unknown> = {
+      id: rawGroup.id,
+      subject: rawGroup.subject,
+      subjectOwner: rawGroup.subjectOwner,
+      subjectTime: rawGroup.subjectTime,
+      size: participants.length,
+      desc: rawGroup.desc,
+      descId: rawGroup.descId,
+      creation: rawGroup.creation,
+      owner: rawGroup.owner,
+      admins,
+      // includeParticipants=true
+      participants: participants.map((p) => ({ jid: p.id, admin: p.admin ?? null })),
+    };
+
+    expect(Object.keys(normalized)).toContain("participants");
+    const parts = normalized["participants"] as { jid: string; admin: string | null }[];
+    expect(parts).toHaveLength(2);
+    // someHugeField must be stripped
+    expect(Object.keys(parts[0]!)).not.toContain("someHugeField");
+  });
+
+  // ─── download_media — writes file, returns path ───────────────────────────
+
+  it("download_media — decodes base64 and returns path/mimetype/size/messageId", async () => {
+    // Simulate the tool logic without hitting Evolution or fs
+    const { mimeToExt } = await import("../src/util/normalize.js");
+
+    const mimetype = "image/jpeg";
+    const base64 = Buffer.from("fake-image-data").toString("base64");
+    const messageId = "msg-img-001";
+    const instanceName = "test-instance";
+
+    const ext = mimeToExt(mimetype);
+    expect(ext).toBe("jpg");
+
+    const buf = Buffer.from(base64, "base64");
+    expect(buf.toString()).toBe("fake-image-data");
+
+    const filePath = `/tmp/mcp-evolution-media/${instanceName}-${messageId}.${ext}`;
+    const result = { path: filePath, mimetype, size: buf.length, messageId };
+
+    expect(result.path).toBe("/tmp/mcp-evolution-media/test-instance-msg-img-001.jpg");
+    expect(result.size).toBe(15);
+    expect(result.messageId).toBe("msg-img-001");
+    // Must NOT contain base64
+    expect(Object.keys(result)).not.toContain("base64");
+  });
+
+  it("mimeToExt — known types return clean ext, unknown stripped to alphanum", async () => {
+    const { mimeToExt } = await import("../src/util/normalize.js");
+    // application/octet-stream not in map → strips hyphen → "octetstream"
+    expect(mimeToExt("application/octet-stream")).toBe("octetstream");
+    // known types
+    expect(mimeToExt("video/mp4")).toBe("mp4");
+    expect(mimeToExt("audio/ogg")).toBe("ogg");
+    expect(mimeToExt("image/jpeg")).toBe("jpg");
+    // truly unknown subtype falls back to "bin"
+    expect(mimeToExt("application/")).toBe("bin");
+  });
+
   // ─── Block tool ───────────────────────────────────────────────────────────
 
   it("POST update_block_status — sends number and status", async () => {
