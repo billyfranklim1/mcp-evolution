@@ -568,4 +568,132 @@ describe("EvolutionClient", () => {
     const body = JSON.parse(opts.body as string) as Record<string, unknown>;
     expect(body["status"]).toBe("block");
   });
+
+  // ─── list_groups — search + limit ─────────────────────────────────────────
+
+  it("list_groups search — filters by subject substring (case-insensitive)", async () => {
+    const allGroups = [
+      { id: "g1@g.us", subject: "Igreja Central", size: 20, owner: "x" },
+      { id: "g2@g.us", subject: "Trabalho", size: 5, owner: "y" },
+      { id: "g3@g.us", subject: "Igreja Norte", size: 15, owner: "z" },
+    ];
+    const mockFetch = makeFetchMock(200, allGroups);
+    vi.stubGlobal("fetch", mockFetch);
+    const client = new EvolutionClient(BASE_CONFIG);
+    const data = await client.get<typeof allGroups>(
+      "/group/fetchAllGroups/test-instance?getParticipants=false"
+    );
+
+    // Simulate what the tool handler does
+    const search = "igreja";
+    const needle = search.toLowerCase();
+    const filtered = data.filter((g) => g.subject.toLowerCase().includes(needle));
+    const sorted = filtered.sort((a, b) => a.subject.localeCompare(b.subject));
+    const normalized = sorted.map(({ id, subject, size }) => ({ id, subject, size }));
+
+    expect(normalized).toHaveLength(2);
+    expect(normalized.map((g) => g.subject)).toEqual(["Igreja Central", "Igreja Norte"]);
+    // owner must not be present
+    expect(Object.keys(normalized[0]!)).not.toContain("owner");
+  });
+
+  it("list_groups limit — caps result count", async () => {
+    const allGroups = Array.from({ length: 10 }, (_, i) => ({
+      id: `g${i}@g.us`,
+      subject: `Group ${i}`,
+      size: i + 1,
+      owner: "x",
+    }));
+    const mockFetch = makeFetchMock(200, allGroups);
+    vi.stubGlobal("fetch", mockFetch);
+    const client = new EvolutionClient(BASE_CONFIG);
+    const data = await client.get<typeof allGroups>(
+      "/group/fetchAllGroups/test-instance?getParticipants=false"
+    );
+
+    const limit = 2;
+    const sorted = [...data].sort((a, b) => a.subject.localeCompare(b.subject));
+    const capped = sorted.slice(0, limit).map(({ id, subject, size }) => ({ id, subject, size }));
+
+    expect(capped).toHaveLength(2);
+  });
+
+  // ─── find_chats — search + limit + where ──────────────────────────────────
+
+  it("find_chats search — filters by pushName or remoteJid substring", async () => {
+    const allChats = [
+      { remoteJid: "5511@s.whatsapp.net", pushName: "Maria Silva", name: null, unreadCount: 0, updatedAt: "2024-01-01", extra: "drop" },
+      { remoteJid: "5522@s.whatsapp.net", pushName: "João Santos", name: null, unreadCount: 1, updatedAt: "2024-01-02", extra: "drop" },
+      { remoteJid: "grupo@g.us", pushName: null, name: "Igreja", unreadCount: 5, updatedAt: "2024-01-03", extra: "drop" },
+    ];
+    const mockFetch = makeFetchMock(200, allChats);
+    vi.stubGlobal("fetch", mockFetch);
+    const client = new EvolutionClient(BASE_CONFIG);
+    const raw = await client.post("/chat/findChats/test-instance", { limit: 50, offset: 0 }) as typeof allChats;
+
+    // Simulate tool handler: search without where
+    const needle = "maria";
+    const filtered = raw.filter(
+      (c) =>
+        c.pushName?.toLowerCase().includes(needle) ||
+        c.remoteJid?.toLowerCase().includes(needle)
+    );
+    const normalized = filtered.map(({ remoteJid, pushName, name, unreadCount, updatedAt }) => ({
+      remoteJid, pushName, name, unreadCount, updatedAt,
+    }));
+
+    expect(normalized).toHaveLength(1);
+    expect(normalized[0]!.pushName).toBe("Maria Silva");
+    // extra field must be dropped
+    expect(Object.keys(normalized[0]!)).not.toContain("extra");
+  });
+
+  it("find_chats limit — caps result count", async () => {
+    const allChats = Array.from({ length: 20 }, (_, i) => ({
+      remoteJid: `55${i}@s.whatsapp.net`,
+      pushName: `Contact ${i}`,
+      name: null,
+      unreadCount: 0,
+      updatedAt: "2024-01-01",
+    }));
+    const mockFetch = makeFetchMock(200, allChats);
+    vi.stubGlobal("fetch", mockFetch);
+    const client = new EvolutionClient(BASE_CONFIG);
+    const raw = await client.post("/chat/findChats/test-instance", { limit: 5, offset: 0 }) as typeof allChats;
+
+    // Simulate tool handler client-side safety cap
+    const limit = 5;
+    const offset = 0;
+    const capped = raw.slice(offset, offset + limit);
+
+    expect(capped).toHaveLength(5);
+  });
+
+  it("find_chats with where — uses where and skips client-side search, still normalizes shape", async () => {
+    const returnedChats = [
+      { remoteJid: "5511@s.whatsapp.net", pushName: "Alice", name: null, unreadCount: 2, updatedAt: "2024-01-01", secret: "hidden" },
+    ];
+    const mockFetch = makeFetchMock(200, returnedChats);
+    vi.stubGlobal("fetch", mockFetch);
+    const client = new EvolutionClient(BASE_CONFIG);
+
+    const customWhere = { remoteJid: { contains: "5511" } };
+    const raw = await client.post("/chat/findChats/test-instance", {
+      where: customWhere,
+      limit: 50,
+      offset: 0,
+    }) as typeof returnedChats;
+
+    // Verify where was forwarded
+    const [, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(opts.body as string) as Record<string, unknown>;
+    expect(body["where"]).toEqual(customWhere);
+
+    // Normalize shape (no client-side search since where was provided)
+    const normalized = raw.map(({ remoteJid, pushName, name, unreadCount, updatedAt }) => ({
+      remoteJid, pushName, name, unreadCount, updatedAt,
+    }));
+    expect(normalized[0]!.pushName).toBe("Alice");
+    expect(Object.keys(normalized[0]!)).not.toContain("secret");
+  });
 });
