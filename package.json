@@ -1,0 +1,26 @@
+{
+  "name": "mcp-evolution",
+  "version": "0.1.0",
+  "description": "MCP server for Evolution API (WhatsApp) with instance pinning",
+  "type": "module",
+  "main": "server.js",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "evolution-api",
+    "whatsapp"
+  ],
+  "author": "Billy Franklim",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/billyfranklim1/mcp-evolution.git"
+  },
+  "bugs": {
+    "url": "https://github.com/billyfranklim1/mcp-evolution/issues"
+  },
+  "homepage": "https://github.com/billyfranklim1/mcp-evolution#readme",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  }
+}
