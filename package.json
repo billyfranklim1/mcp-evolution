@@ -4,6 +4,17 @@
   "description": "MCP server for Evolution API (WhatsApp) with instance pinning",
   "type": "module",
   "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "files": [
+    "server.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
   "keywords": [
     "mcp",
     "model-context-protocol",

@@ -1,5 +1,9 @@
 # mcp-evolution
 
+[![npm version](https://img.shields.io/npm/v/mcp-evolution.svg)](https://www.npmjs.com/package/mcp-evolution)
+[![license](https://img.shields.io/npm/l/mcp-evolution.svg)](./LICENSE)
+[![CI](https://github.com/billyfranklim1/mcp-evolution/actions/workflows/ci.yml/badge.svg)](https://github.com/billyfranklim1/mcp-evolution/actions/workflows/ci.yml)
+
 MCP server for [Evolution API](https://github.com/EvolutionAPI/evolution-api) (WhatsApp) with instance pinning.
 
 ## What it is
