@@ -25,6 +25,10 @@ export class EvolutionClient {
     return this.request<T>("POST", path, body);
   }
 
+  async delete<T = unknown>(path: string, body?: unknown): Promise<T> {
+    return this.request<T>("DELETE", path, body);
+  }
+
   private async request<T>(method: string, path: string, body?: unknown): Promise<T> {
     const url = `${this.baseUrl}${path}`;
     const headers: Record<string, string> = {
