@@ -1,6 +1,6 @@
 {
   "name": "mcp-evolution",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "MCP server for Evolution API (WhatsApp) with instance pinning",
   "type": "module",
   "main": "dist/index.js",
@@ -40,10 +40,12 @@
   "homepage": "https://github.com/billyfranklim1/mcp-evolution#readme",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "pg": "^8.20.0",
     "zod": "^3.24.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "@types/pg": "^8.20.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
     "vitest": "^2.1.0"

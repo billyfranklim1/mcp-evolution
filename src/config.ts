@@ -4,6 +4,7 @@ const ConfigSchema = z.object({
   EVOLUTION_API_URL: z.string().url("EVOLUTION_API_URL must be a valid URL"),
   EVOLUTION_API_KEY: z.string().min(1, "EVOLUTION_API_KEY is required"),
   EVOLUTION_INSTANCE: z.string().min(1, "EVOLUTION_INSTANCE is required"),
+  EVOLUTION_DB_URL: z.string().url().optional(),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;

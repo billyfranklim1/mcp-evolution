@@ -10,6 +10,7 @@ import { registerGetChatHistory } from "./get-chat-history.js";
 import { registerSendText } from "./send-text.js";
 import { registerSendMedia } from "./send-media.js";
 import { registerGetGroupInfo } from "./get-group-info.js";
+import { registerGetGroupResolvedParticipants } from "./get-group-resolved-participants.js";
 
 // Message
 import { registerSendAudio } from "./send-audio.js";
@@ -82,6 +83,7 @@ export function registerAllTools(server: McpServer, client: EvolutionClient): vo
   registerSendText(server, client);
   registerSendMedia(server, client);
   registerGetGroupInfo(server, client);
+  registerGetGroupResolvedParticipants(server, client);
 
   // Message
   registerSendAudio(server, client);
