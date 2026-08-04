@@ -10,6 +10,11 @@ const MessageKeySchema = z.object({
 });
 
 const schema = {
+  chat: z
+    .string()
+    .min(1)
+    .optional()
+    .describe("Chat remoteJid to mark unread. Defaults to lastMessage[0].remoteJid."),
   lastMessage: z
     .array(MessageKeySchema)
     .min(1)
@@ -26,8 +31,10 @@ export function registerMarkAsUnread(server: McpServer, client: EvolutionClient)
     },
     async (args) => {
       try {
+        const chat = args.chat ?? args.lastMessage[0]!.remoteJid;
         const data = await client.post(`/chat/markChatUnread/${client.instanceName}`, {
-          lastMessage: args.lastMessage.map((key) => ({ key })),
+          chat,
+          lastMessage: args.lastMessage,
         });
         return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
       } catch (e) {

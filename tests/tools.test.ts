@@ -978,14 +978,16 @@ describe("EvolutionClient", () => {
     expect(extractMessages([])).toHaveLength(0);
   });
 
-  it("displayNameFromChat — prefers peer pushName, ignores Você", async () => {
-    const { displayNameFromChat, phoneJidFromChat } = await import("../src/util/jid.js");
+  it("displayNameFromChat — prefers peer pushName, ignores Você and fromMe", async () => {
+    const { displayNameFromChat, phoneJidFromChat, lastTextFromChat } = await import(
+      "../src/util/jid.js"
+    );
     expect(
       displayNameFromChat({
         remoteJid: "22222222222222@lid",
         lastMessage: {
           pushName: "Bob Example",
-          key: { remoteJidAlt: "5511976543210@s.whatsapp.net" },
+          key: { remoteJidAlt: "5511976543210@s.whatsapp.net", fromMe: false },
         },
       })
     ).toBe("Bob Example");
@@ -995,7 +997,18 @@ describe("EvolutionClient", () => {
         remoteJid: "33333333333333@lid",
         lastMessage: {
           pushName: "Você",
-          key: { remoteJidAlt: "5511965432109@s.whatsapp.net" },
+          key: { remoteJidAlt: "5511965432109@s.whatsapp.net", fromMe: true },
+        },
+      })
+    ).toBeNull();
+
+    // Owner real name on fromMe last message must not become contact displayName
+    expect(
+      displayNameFromChat({
+        remoteJid: "11111111111111@lid",
+        lastMessage: {
+          pushName: "Owner Name",
+          key: { remoteJidAlt: "5511987654321@s.whatsapp.net", fromMe: true },
         },
       })
     ).toBeNull();
@@ -1006,6 +1019,53 @@ describe("EvolutionClient", () => {
         lastMessage: { key: { remoteJidAlt: "5511987654321@s.whatsapp.net" } },
       })
     ).toBe("5511987654321@s.whatsapp.net");
+
+    expect(
+      lastTextFromChat({
+        lastMessage: {
+          message: { imageMessage: { caption: "photo caption" } },
+        },
+      })
+    ).toBe("photo caption");
+  });
+
+  it("mark_as_unread — sends flat lastMessage keys and chat", async () => {
+    const { registerMarkAsUnread } = await import("../src/tools/mark-as-unread.js");
+    const mockFetch = makeFetchMock(200, { success: true });
+    vi.stubGlobal("fetch", mockFetch);
+
+    const client = new EvolutionClient(BASE_CONFIG);
+    const handlers = new Map<string, (args: unknown) => Promise<unknown>>();
+    const server = {
+      registerTool: (
+        name: string,
+        _meta: unknown,
+        handler: (args: unknown) => Promise<unknown>
+      ) => {
+        handlers.set(name, handler);
+      },
+    };
+
+    registerMarkAsUnread(server as never, client);
+    const handler = handlers.get("mark_as_unread");
+    expect(handler).toBeTypeOf("function");
+
+    await handler!({
+      lastMessage: [
+        { remoteJid: "5511987654321@s.whatsapp.net", fromMe: true, id: "msg-1" },
+      ],
+    });
+
+    const [, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(opts.body as string) as {
+      chat: string;
+      lastMessage: Array<Record<string, unknown>>;
+    };
+    expect(body.chat).toBe("5511987654321@s.whatsapp.net");
+    expect(body.lastMessage).toEqual([
+      { remoteJid: "5511987654321@s.whatsapp.net", fromMe: true, id: "msg-1" },
+    ]);
+    expect(body.lastMessage[0]).not.toHaveProperty("key");
   });
 
   it("fetchNormalizedMessages — merges LID + phone and keeps pushName", async () => {

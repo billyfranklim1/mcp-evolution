@@ -4,9 +4,10 @@ import { McpError } from "@modelcontextprotocol/sdk/types.js";
 import type { EvolutionClient } from "../evolution-client.js";
 import { extractList } from "../util/extract-list.js";
 import { peekInboundPushName } from "../util/fetch-messages.js";
-import { displayNameFromChat, phoneJidFromChat } from "../util/jid.js";
+import { displayNameFromChat, lastTextFromChat, phoneJidFromChat } from "../util/jid.js";
 
 const WEAK_NAMES = new Set(["você", "voce", "you", "tu"]);
+const SEARCH_FETCH_LIMIT = 500;
 
 function isWeakName(name: string | null | undefined): boolean {
   if (!name?.trim()) {
@@ -24,7 +25,7 @@ interface ChatItem {
   lastMessage?: {
     pushName?: string;
     key?: { remoteJid?: string; remoteJidAlt?: string; fromMe?: boolean };
-    message?: { conversation?: string };
+    message?: Record<string, unknown>;
   };
   [key: string]: unknown;
 }
@@ -70,10 +71,14 @@ export function registerFindChats(server: McpServer, client: EvolutionClient): v
       try {
         const limit = args.limit ?? 50;
         const offset = args.offset ?? 0;
+        const searching = Boolean(!args.where && args.search);
 
+        // Avoid double pagination: either API pages OR client slices after search — not both.
         const payload: Record<string, unknown> = args.where
           ? { where: args.where, limit, offset }
-          : { limit, offset };
+          : searching
+            ? { limit: SEARCH_FETCH_LIMIT, offset: 0 }
+            : { limit, offset };
 
         const raw = await client.post(`/chat/findChats/${client.instanceName}`, payload);
         const chats = extractList(raw, ["chats", "records"]) as ChatItem[];
@@ -87,14 +92,13 @@ export function registerFindChats(server: McpServer, client: EvolutionClient): v
           name: c.name ?? null,
           unreadCount: c.unreadCount,
           updatedAt: c.updatedAt,
-          lastText: c.lastMessage?.message?.conversation ?? null,
+          lastText: lastTextFromChat(c),
         }));
 
-        // Name search needs inbound pushName before filter. Use a single findMessages
-        // peek per weak-name chat (no LID resolve / no nested findChats).
-        const needsNameSearch = Boolean(!args.where && args.search);
+        // Name search needs inbound pushName before filter. One findMessages peek per weak name
+        // (no LID resolve / no nested findChats).
         let working = base;
-        if (needsNameSearch) {
+        if (searching) {
           working = await Promise.all(
             base.map(async (c) => {
               if (!isWeakName(c.displayName) || !c.remoteJid) {
@@ -107,8 +111,8 @@ export function registerFindChats(server: McpServer, client: EvolutionClient): v
         }
 
         let filtered = working;
-        if (!args.where && args.search) {
-          const needle = args.search.toLowerCase();
+        if (searching) {
+          const needle = args.search!.toLowerCase();
           filtered = working.filter(
             (c) =>
               c.displayName?.toLowerCase().includes(needle) ||
@@ -118,12 +122,11 @@ export function registerFindChats(server: McpServer, client: EvolutionClient): v
               c.phoneJid?.toLowerCase().includes(needle) ||
               c.lastText?.toLowerCase().includes(needle)
           );
+          filtered = filtered.slice(offset, offset + limit);
         }
 
-        filtered = filtered.slice(offset, offset + limit);
-
-        // For list (no search): only enrich the returned page with inbound names
-        if (!needsNameSearch) {
+        // List mode: API already applied limit/offset; only enrich the returned page.
+        if (!searching) {
           filtered = await Promise.all(
             filtered.map(async (c) => {
               if (!isWeakName(c.displayName) || !c.remoteJid) {

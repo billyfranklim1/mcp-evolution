@@ -15,6 +15,7 @@ interface ChatRow {
     key?: {
       remoteJid?: string;
       remoteJidAlt?: string;
+      fromMe?: boolean;
     };
     pushName?: string;
   };
@@ -64,13 +65,38 @@ export async function resolveRelatedJids(
 
 export function displayNameFromChat(chat: ChatRow): string | null {
   const lastPush = chat.lastMessage?.pushName?.trim();
-  // Prefer non-self labels when last message is from peer; "Você"/"You" are weak
+  const fromMe = chat.lastMessage?.key?.fromMe === true;
+  // lastMessage.pushName is the sender — ignore when fromMe (owner name, not contact)
   const weak = new Set(["você", "voce", "you", "tu"]);
-  if (lastPush && !weak.has(lastPush.toLowerCase())) {
+  if (!fromMe && lastPush && !weak.has(lastPush.toLowerCase())) {
     return lastPush;
   }
   // Do not fall back to weak self-labels — agent should use find_messages pushName
   return chat.pushName?.trim() || chat.name?.trim() || null;
+}
+
+/** Best-effort last message text for chat list search/display. */
+export function lastTextFromChat(chat: {
+  lastMessage?: { message?: Record<string, unknown> | null };
+}): string | null {
+  const msg = chat.lastMessage?.message;
+  if (!msg || typeof msg !== "object") {
+    return null;
+  }
+  if (typeof msg.conversation === "string" && msg.conversation.trim()) {
+    return msg.conversation;
+  }
+  const extended = msg.extendedTextMessage as { text?: string } | undefined;
+  if (typeof extended?.text === "string" && extended.text.trim()) {
+    return extended.text;
+  }
+  for (const key of ["imageMessage", "videoMessage", "documentMessage", "audioMessage"] as const) {
+    const media = msg[key] as { caption?: string } | undefined;
+    if (typeof media?.caption === "string" && media.caption.trim()) {
+      return media.caption;
+    }
+  }
+  return null;
 }
 
 export function phoneJidFromChat(chat: ChatRow): string | null {

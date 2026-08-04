@@ -13,6 +13,8 @@ interface ContactItem {
   [key: string]: unknown;
 }
 
+const SEARCH_FETCH_LIMIT = 2000;
+
 const schema = {
   where: z
     .record(z.unknown())
@@ -53,25 +55,28 @@ export function registerFindContacts(server: McpServer, client: EvolutionClient)
       try {
         const limit = args.limit ?? 200;
         const offset = args.offset ?? 0;
+        const searching = Boolean(!args.where && args.search);
 
+        // Avoid double pagination: API pages OR client slices after search — not both.
         const payload: Record<string, unknown> = args.where
           ? { where: args.where, limit, offset }
-          : { limit, offset };
+          : searching
+            ? { limit: SEARCH_FETCH_LIMIT, offset: 0 }
+            : { limit, offset };
 
         const raw = await client.post(`/chat/findContacts/${client.instanceName}`, payload);
         let contacts = extractList(raw, ["contacts", "records"]) as ContactItem[];
 
-        if (!args.where && args.search) {
-          const needle = args.search.toLowerCase();
+        if (searching) {
+          const needle = args.search!.toLowerCase();
           contacts = contacts.filter(
             (c) =>
               c.pushName?.toLowerCase().includes(needle) ||
               c.name?.toLowerCase().includes(needle) ||
               c.remoteJid?.toLowerCase().includes(needle)
           );
+          contacts = contacts.slice(offset, offset + limit);
         }
-
-        contacts = contacts.slice(offset, offset + limit);
 
         const normalized = contacts.map(({ remoteJid, pushName, profilePicUrl, isBusiness }) => ({
           remoteJid,

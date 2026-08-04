@@ -44,9 +44,9 @@ export function registerFindStatusMessages(server: McpServer, client: EvolutionC
           payload.where = args.where;
         }
 
+        // Trust API pagination (do not re-slice — that empties pages when offset > 0).
         const data = await client.post(`/chat/findStatusMessage/${client.instanceName}`, payload);
-        let rows = extractList(data, ["messages", "status", "records"]);
-        rows = rows.slice(offset, offset + limit);
+        const rows = extractList(data, ["messages", "status", "records"]);
 
         return {
           content: [{ type: "text" as const, text: JSON.stringify(rows, null, 2) }],
