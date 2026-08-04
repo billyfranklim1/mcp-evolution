@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
 import type { EvolutionClient } from "../evolution-client.js";
+import { extractList } from "../util/extract-list.js";
 
 interface ContactItem {
   remoteJid?: string;
@@ -44,8 +45,8 @@ export function registerFindContacts(server: McpServer, client: EvolutionClient)
     {
       title: "Find Contacts",
       description:
-        "Find contacts for the pinned instance. Supports search (substring on pushName/name/remoteJid), limit, and offset to prevent large payloads. " +
-        "Returns normalized { remoteJid, pushName, profilePicUrl, isBusiness } — extra fields dropped.",
+        "Find contacts for the pinned instance. Supports search (substring on pushName/name/remoteJid), limit, and offset. " +
+        "Returns normalized { remoteJid, pushName, profilePicUrl, isBusiness }.",
       inputSchema: schema,
     },
     async (args) => {
@@ -58,10 +59,8 @@ export function registerFindContacts(server: McpServer, client: EvolutionClient)
           : { limit, offset };
 
         const raw = await client.post(`/chat/findContacts/${client.instanceName}`, payload);
+        let contacts = extractList(raw, ["contacts", "records"]) as ContactItem[];
 
-        let contacts: ContactItem[] = Array.isArray(raw) ? raw : [];
-
-        // Client-side search only when no custom where was supplied
         if (!args.where && args.search) {
           const needle = args.search.toLowerCase();
           contacts = contacts.filter(
@@ -72,10 +71,8 @@ export function registerFindContacts(server: McpServer, client: EvolutionClient)
           );
         }
 
-        // Client-side safety net for limit/offset (in case Evolution ignores them)
         contacts = contacts.slice(offset, offset + limit);
 
-        // Normalize to compact shape — drop everything else
         const normalized = contacts.map(({ remoteJid, pushName, profilePicUrl, isBusiness }) => ({
           remoteJid,
           pushName,
