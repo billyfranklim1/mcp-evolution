@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
 import type { EvolutionClient } from "../evolution-client.js";
+import { extractList } from "../util/extract-list.js";
 
 interface RawLabel {
   id?: string;
@@ -22,7 +23,7 @@ export function registerFindLabels(server: McpServer, client: EvolutionClient): 
     async () => {
       try {
         const data = await client.get(`/label/findLabels/${client.instanceName}`);
-        const raw: RawLabel[] = Array.isArray(data) ? data : [];
+        const raw = extractList(data, ["labels", "records"]) as RawLabel[];
 
         const normalized = raw.map(({ id, name, color }) => ({ id, name, color }));
 

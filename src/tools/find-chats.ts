@@ -2,6 +2,19 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
 import type { EvolutionClient } from "../evolution-client.js";
+import { extractList } from "../util/extract-list.js";
+import { peekInboundPushName } from "../util/fetch-messages.js";
+import { displayNameFromChat, lastTextFromChat, phoneJidFromChat } from "../util/jid.js";
+
+const WEAK_NAMES = new Set(["você", "voce", "you", "tu"]);
+const SEARCH_FETCH_LIMIT = 500;
+
+function isWeakName(name: string | null | undefined): boolean {
+  if (!name?.trim()) {
+    return true;
+  }
+  return WEAK_NAMES.has(name.trim().toLowerCase());
+}
 
 interface ChatItem {
   remoteJid?: string;
@@ -9,6 +22,11 @@ interface ChatItem {
   name?: string;
   unreadCount?: number;
   updatedAt?: string;
+  lastMessage?: {
+    pushName?: string;
+    key?: { remoteJid?: string; remoteJidAlt?: string; fromMe?: boolean };
+    message?: Record<string, unknown>;
+  };
   [key: string]: unknown;
 }
 
@@ -20,7 +38,9 @@ const schema = {
   search: z
     .string()
     .optional()
-    .describe("Convenience substring filter against pushName or remoteJid (case-insensitive). Ignored when where is provided."),
+    .describe(
+      "Substring filter against displayName, pushName, remoteJid, or phoneJid (case-insensitive). Ignored when where is provided."
+    ),
   limit: z
     .number()
     .int()
@@ -44,47 +64,82 @@ export function registerFindChats(server: McpServer, client: EvolutionClient): v
     {
       title: "Find Chats",
       description:
-        "Find chats for the pinned instance. Supports search, limit, and offset to prevent large payloads.",
+        "Find chats for the pinned instance. Returns remoteJid, phoneJid (when LID), displayName (from message pushName when available), unreadCount, updatedAt.",
       inputSchema: schema,
     },
     async (args) => {
       try {
         const limit = args.limit ?? 50;
         const offset = args.offset ?? 0;
+        const searching = Boolean(!args.where && args.search);
 
-        // Build Evolution request body — pass limit/offset as top-level keys (Evolution v2)
+        // Avoid double pagination: either API pages OR client slices after search — not both.
         const payload: Record<string, unknown> = args.where
           ? { where: args.where, limit, offset }
-          : { limit, offset };
+          : searching
+            ? { limit: SEARCH_FETCH_LIMIT, offset: 0 }
+            : { limit, offset };
 
         const raw = await client.post(`/chat/findChats/${client.instanceName}`, payload);
+        const chats = extractList(raw, ["chats", "records"]) as ChatItem[];
 
-        let chats: ChatItem[] = Array.isArray(raw) ? raw : [];
+        // Row-level enrich (no extra API). Peer names often missing when last msg is fromMe.
+        const base = chats.map((c) => ({
+          remoteJid: c.remoteJid,
+          phoneJid: phoneJidFromChat(c),
+          displayName: displayNameFromChat(c),
+          pushName: c.pushName ?? null,
+          name: c.name ?? null,
+          unreadCount: c.unreadCount,
+          updatedAt: c.updatedAt,
+          lastText: lastTextFromChat(c),
+        }));
 
-        // Client-side search only when no custom where was supplied
-        if (!args.where && args.search) {
-          const needle = args.search.toLowerCase();
-          chats = chats.filter(
-            (c) =>
-              c.pushName?.toLowerCase().includes(needle) ||
-              c.remoteJid?.toLowerCase().includes(needle)
+        // Name search needs inbound pushName before filter. One findMessages peek per weak name
+        // (no LID resolve / no nested findChats).
+        let working = base;
+        if (searching) {
+          working = await Promise.all(
+            base.map(async (c) => {
+              if (!isWeakName(c.displayName) || !c.remoteJid) {
+                return c;
+              }
+              const inboundName = await peekInboundPushName(client, c.remoteJid, 20);
+              return inboundName ? { ...c, displayName: inboundName } : c;
+            })
           );
         }
 
-        // Client-side safety net for limit/offset (in case Evolution ignores them)
-        chats = chats.slice(offset, offset + limit);
+        let filtered = working;
+        if (searching) {
+          const needle = args.search!.toLowerCase();
+          filtered = working.filter(
+            (c) =>
+              c.displayName?.toLowerCase().includes(needle) ||
+              c.pushName?.toLowerCase().includes(needle) ||
+              c.name?.toLowerCase().includes(needle) ||
+              c.remoteJid?.toLowerCase().includes(needle) ||
+              c.phoneJid?.toLowerCase().includes(needle) ||
+              c.lastText?.toLowerCase().includes(needle)
+          );
+          filtered = filtered.slice(offset, offset + limit);
+        }
 
-        // Normalize to compact shape — drop all extra fields to shrink payload
-        const normalized = chats.map(({ remoteJid, pushName, name, unreadCount, updatedAt }) => ({
-          remoteJid,
-          pushName,
-          name,
-          unreadCount,
-          updatedAt,
-        }));
+        // List mode: API already applied limit/offset; only enrich the returned page.
+        if (!searching) {
+          filtered = await Promise.all(
+            filtered.map(async (c) => {
+              if (!isWeakName(c.displayName) || !c.remoteJid) {
+                return c;
+              }
+              const inboundName = await peekInboundPushName(client, c.remoteJid, 20);
+              return inboundName ? { ...c, displayName: inboundName } : c;
+            })
+          );
+        }
 
         return {
-          content: [{ type: "text" as const, text: JSON.stringify(normalized, null, 2) }],
+          content: [{ type: "text" as const, text: JSON.stringify(filtered, null, 2) }],
         };
       } catch (e) {
         if (e instanceof McpError) {
