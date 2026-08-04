@@ -613,14 +613,22 @@ describe("EvolutionClient", () => {
   it("find_messages normalized shape — all required fields, no extras", async () => {
     const { normalizeMessage } = await import("../src/util/normalize.js");
     const rawMsg = {
-      key: { id: "msg-abc", fromMe: true, remoteJid: "5511@s.whatsapp.net" },
+      key: {
+        id: "msg-abc",
+        fromMe: false,
+        remoteJid: "11111111111111@lid",
+        remoteJidAlt: "5511987654321@s.whatsapp.net",
+      },
+      pushName: "Alice Peer",
       messageTimestamp: 1700000000,
       message: { conversation: "Hello world" },
     };
     const norm = normalizeMessage(rawMsg);
     expect(norm.id).toBe("msg-abc");
-    expect(norm.fromMe).toBe(true);
-    expect(norm.remoteJid).toBe("5511@s.whatsapp.net");
+    expect(norm.fromMe).toBe(false);
+    expect(norm.remoteJid).toBe("11111111111111@lid");
+    expect(norm.remoteJidAlt).toBe("5511987654321@s.whatsapp.net");
+    expect(norm.pushName).toBe("Alice Peer");
     expect(norm.timestamp).toBe(1700000000);
     expect(norm.type).toBe("conversation");
     expect(norm.text).toBe("Hello world");
@@ -642,6 +650,27 @@ describe("EvolutionClient", () => {
     expect(norm.type).toBe("imageMessage");
     expect(norm.text).toBe("Check this out");
     expect(norm.mediaKey).toBe("img-001"); // uses key.id as download handle
+  });
+
+  it("find_messages — Evolution mediaUrl wrapper still yields image caption", async () => {
+    const { normalizeMessage } = await import("../src/util/normalize.js");
+    const rawMsg = {
+      key: { id: "msg-caption-001", fromMe: true, remoteJid: "group@g.us" },
+      pushName: "Me",
+      messageTimestamp: 1700000003,
+      message: {
+        mediaUrl: "http://minio:9000/evolution/image.jpeg",
+        imageMessage: {
+          caption: "Sample caption after mediaUrl wrapper.",
+          mimetype: "image/jpeg",
+        },
+        messageContextInfo: {},
+      },
+    };
+    const norm = normalizeMessage(rawMsg);
+    expect(norm.type).toBe("imageMessage");
+    expect(norm.text).toContain("Sample caption");
+    expect(norm.mediaKey).toBe("msg-caption-001");
   });
 
   it("find_messages — reply message sets quotedMessageId", async () => {
@@ -927,5 +956,146 @@ describe("EvolutionClient", () => {
     }));
     expect(normalized[0]!.pushName).toBe("Alice");
     expect(Object.keys(normalized[0]!)).not.toContain("secret");
+  });
+
+  // ─── extractList / LID / displayName ─────────────────────────────────────
+
+  it("extractList — paginated messages.records shape (Evolution v2)", async () => {
+    const { extractMessages } = await import("../src/util/extract-messages.js");
+    const shaped = {
+      messages: {
+        total: 2,
+        pages: 1,
+        currentPage: 1,
+        records: [
+          { key: { id: "a" }, message: { conversation: "hi" } },
+          { key: { id: "b" }, message: { conversation: "Hi!" } },
+        ],
+      },
+    };
+    expect(extractMessages(shaped)).toHaveLength(2);
+    expect(extractMessages({ messages: [{ key: { id: "x" } }] })).toHaveLength(1);
+    expect(extractMessages([])).toHaveLength(0);
+  });
+
+  it("displayNameFromChat — prefers peer pushName, ignores Você", async () => {
+    const { displayNameFromChat, phoneJidFromChat } = await import("../src/util/jid.js");
+    expect(
+      displayNameFromChat({
+        remoteJid: "22222222222222@lid",
+        lastMessage: {
+          pushName: "Bob Example",
+          key: { remoteJidAlt: "5511976543210@s.whatsapp.net" },
+        },
+      })
+    ).toBe("Bob Example");
+
+    expect(
+      displayNameFromChat({
+        remoteJid: "33333333333333@lid",
+        lastMessage: {
+          pushName: "Você",
+          key: { remoteJidAlt: "5511965432109@s.whatsapp.net" },
+        },
+      })
+    ).toBeNull();
+
+    expect(
+      phoneJidFromChat({
+        remoteJid: "11111111111111@lid",
+        lastMessage: { key: { remoteJidAlt: "5511987654321@s.whatsapp.net" } },
+      })
+    ).toBe("5511987654321@s.whatsapp.net");
+  });
+
+  it("fetchNormalizedMessages — merges LID + phone and keeps pushName", async () => {
+    const { fetchNormalizedMessages } = await import("../src/util/fetch-messages.js");
+
+    const mockFetch = vi.fn().mockImplementation(async (url: string) => {
+      if (String(url).includes("/chat/findChats/")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () =>
+            JSON.stringify([
+              {
+                remoteJid: "11111111111111@lid",
+                lastMessage: {
+                  key: { remoteJidAlt: "5511987654321@s.whatsapp.net" },
+                },
+              },
+            ]),
+        };
+      }
+      // findMessages
+      return {
+        ok: true,
+        status: 200,
+        text: async () =>
+          JSON.stringify({
+            messages: {
+              total: 1,
+              records: [
+                {
+                  key: {
+                    id: "msg-1",
+                    fromMe: false,
+                    remoteJid: "11111111111111@lid",
+                    remoteJidAlt: "5511987654321@s.whatsapp.net",
+                  },
+                  pushName: "Alice Peer",
+                  messageTimestamp: 100,
+                  message: { conversation: "Hello" },
+                },
+              ],
+            },
+          }),
+      };
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    const client = new EvolutionClient(BASE_CONFIG);
+    const msgs = await fetchNormalizedMessages(client, "5511987654321@s.whatsapp.net", 50, 0);
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0]!.pushName).toBe("Alice Peer");
+    expect(msgs[0]!.remoteJidAlt).toBe("5511987654321@s.whatsapp.net");
+    // findChats once + findMessages for each related JID (phone + lid)
+    expect(mockFetch.mock.calls.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("peekInboundPushName — one findMessages call, no findChats", async () => {
+    const { peekInboundPushName } = await import("../src/util/fetch-messages.js");
+
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          messages: {
+            records: [
+              {
+                key: { id: "1", fromMe: true, remoteJid: "11111111111111@lid" },
+                pushName: "Você",
+                messageTimestamp: 200,
+                message: { conversation: "hey" },
+              },
+              {
+                key: { id: "2", fromMe: false, remoteJid: "11111111111111@lid" },
+                pushName: "Alice Peer",
+                messageTimestamp: 100,
+                message: { conversation: "hi" },
+              },
+            ],
+          },
+        }),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    const client = new EvolutionClient(BASE_CONFIG);
+    await expect(peekInboundPushName(client, "11111111111111@lid", 20)).resolves.toBe(
+      "Alice Peer"
+    );
+    expect(mockFetch).toHaveBeenCalledOnce();
+    expect(String(mockFetch.mock.calls[0]![0])).toContain("/chat/findMessages/");
   });
 });
