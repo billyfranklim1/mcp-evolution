@@ -5,12 +5,14 @@ export class EvolutionClient {
   private readonly baseUrl: string;
   private readonly apiKey: string;
   private readonly instance: string;
+  private readonly basicAuth?: string;
 
   constructor(config: Config) {
     // Strip trailing slash to keep URL building consistent
     this.baseUrl = config.EVOLUTION_API_URL.replace(/\/$/, "");
     this.apiKey = config.EVOLUTION_API_KEY;
     this.instance = config.EVOLUTION_INSTANCE;
+    this.basicAuth = config.EVOLUTION_BASIC_AUTH;
   }
 
   get instanceName(): string {
@@ -35,6 +37,8 @@ export class EvolutionClient {
       apikey: this.apiKey,
       "Content-Type": "application/json",
     };
+
+    if (this.basicAuth) headers.Authorization = `Basic ${this.basicAuth}`;
 
     const res = await fetch(url, {
       method,
