@@ -3,7 +3,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
 import type { EvolutionClient } from "../evolution-client.js";
 import { JidSchema } from "../schemas.js";
-import { normalizeMessage } from "../util/normalize.js";
+import { normalizeMessage, extractMessages } from "../util/normalize.js";
 
 const schema = {
   remoteJid: JidSchema,
@@ -46,12 +46,7 @@ export function registerFindMessages(server: McpServer, client: EvolutionClient)
         };
         const data = await client.post(`/chat/findMessages/${client.instanceName}`, payload);
 
-        // Evolution may return { messages: [...] } or a bare array
-        const rawArr: unknown[] = Array.isArray(data)
-          ? data
-          : Array.isArray((data as { messages?: unknown[] }).messages)
-            ? (data as { messages: unknown[] }).messages
-            : [];
+        const rawArr = extractMessages(data);
 
         // Client-side offset/limit safety net
         const sliced = rawArr.slice(offset, offset + limit);

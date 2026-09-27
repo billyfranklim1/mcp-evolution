@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { EvolutionClient } from "../src/evolution-client.js";
 import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
+import { extractMessages } from "../src/util/normalize.js";
 
 const BASE_CONFIG = {
   EVOLUTION_API_URL: "http://localhost:8080",
@@ -19,6 +20,16 @@ function makeFetchMock(status: number, body: unknown) {
 describe("EvolutionClient", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  it("keeps the API key and adds optional nginx Basic Auth", async () => {
+    const mockFetch = makeFetchMock(200, { state: "open" });
+    vi.stubGlobal("fetch", mockFetch);
+    const client = new EvolutionClient({ ...BASE_CONFIG, EVOLUTION_BASIC_AUTH: "dGVzdDp0ZXN0" });
+    await client.get("/instance/connectionState/test-instance");
+    const headers = mockFetch.mock.calls[0][1].headers;
+    expect(headers.apikey).toBe("test-key");
+    expect(headers.Authorization).toBe("Basic dGVzdDp0ZXN0");
   });
 
   it("GET list_groups — builds correct URL and headers", async () => {
@@ -927,5 +938,23 @@ describe("EvolutionClient", () => {
     }));
     expect(normalized[0]!.pushName).toBe("Alice");
     expect(Object.keys(normalized[0]!)).not.toContain("secret");
+  });
+});
+
+describe("Evolution message response envelopes", () => {
+  it.each([[], { messages: [] }, { messages: { records: [], total: 0 } }])(
+    "accepts supported empty envelope %#",
+    (data) => {
+      expect(extractMessages(data)).toEqual([]);
+    }
+  );
+
+  it("preserves paginated v2 message records", () => {
+    const records = [{ key: { id: "fixture-id" }, message: { conversation: "reply" } }];
+    expect(extractMessages({ messages: { records, total: 1 } })).toEqual(records);
+  });
+
+  it("does not disguise an unexpected response as empty history", () => {
+    expect(() => extractMessages({ error: "invalid" })).toThrow();
   });
 });

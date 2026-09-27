@@ -88,3 +88,16 @@ export function normalizeMessage(raw: RawMessage): NormalizedMessage {
 
   return result;
 }
+
+/** Evolution v2 paginates messages under messages.records. */
+export function extractMessages(data: unknown): unknown[] {
+  if (Array.isArray(data)) return data;
+  if (data && typeof data === "object" && "messages" in data) {
+    const messages = data.messages;
+    if (Array.isArray(messages)) return messages;
+    if (messages && typeof messages === "object" && "records" in messages && Array.isArray(messages.records)) {
+      return messages.records;
+    }
+  }
+  throw new Error("Unsupported Evolution messages response shape");
+}
