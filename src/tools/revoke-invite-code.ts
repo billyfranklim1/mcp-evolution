@@ -1,21 +1,20 @@
 import { z } from "zod";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ToolRegistry } from "../registry.js";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
-import type { EvolutionClient } from "../evolution-client.js";
 
 const schema = {
   groupJid: z.string().min(1).describe("Group JID (e.g. 120363000000000000@g.us)"),
 };
 
-export function registerRevokeInviteCode(server: McpServer, client: EvolutionClient): void {
+export function registerRevokeInviteCode(server: ToolRegistry): void {
   server.registerTool(
     "revoke_invite_code",
     {
       title: "Revoke Invite Code",
-      description: "Revoke and regenerate the invite code for a WhatsApp group via the pinned instance.",
+      description: "Revoke and regenerate the invite code for a WhatsApp group via the selected instance.",
       inputSchema: schema,
     },
-    async (args) => {
+    async (args, { client }) => {
       try {
         const data = await client.post(
           `/group/revokeInviteCode/${client.instanceName}?groupJid=${encodeURIComponent(args.groupJid)}`,

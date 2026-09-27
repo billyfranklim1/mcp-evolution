@@ -1,7 +1,6 @@
 import { z } from "zod";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ToolRegistry } from "../registry.js";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
-import type { EvolutionClient } from "../evolution-client.js";
 import { getPool, isDbConfigured } from "../util/db.js";
 
 interface RawParticipant {
@@ -51,9 +50,7 @@ const schema = {
 };
 
 export function registerGetGroupResolvedParticipants(
-  server: McpServer,
-  client: EvolutionClient,
-): void {
+  server: ToolRegistry): void {
   server.registerTool(
     "get_group_resolved_participants",
     {
@@ -67,7 +64,7 @@ export function registerGetGroupResolvedParticipants(
         "Requires EVOLUTION_DB_URL env var pointing to Evolution's Postgres.",
       inputSchema: schema,
     },
-    async (args) => {
+    async (args, { client }) => {
       try {
         if (!isDbConfigured()) {
           return {
@@ -147,11 +144,12 @@ export function registerGetGroupResolvedParticipants(
                 AND key->>'participant' = ANY($2::text[])
                 AND "messageTimestamp" > EXTRACT(EPOCH FROM (NOW() - ($3 || ' days')::interval))
                 AND (key->>'participantAlt' IS NOT NULL OR "pushName" IS NOT NULL)
+                AND "instanceId" = (SELECT id FROM "Instance" WHERE name = $4 LIMIT 1)
               ORDER BY "messageTimestamp" DESC
             ) t
             ORDER BY participant, last_seen DESC NULLS LAST
           `;
-          const params: unknown[] = [groupJid, lidIds, String(sinceDays)];
+          const params: unknown[] = [groupJid, lidIds, String(sinceDays), client.instanceName];
           const res = await pool.query<ResolvedRow>(sql, params);
           for (const row of res.rows) {
             resolvedMap.set(row.participant, row);

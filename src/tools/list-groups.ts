@@ -1,7 +1,6 @@
 import { z } from "zod";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ToolRegistry } from "../registry.js";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
-import type { EvolutionClient } from "../evolution-client.js";
 
 interface GroupItem {
   id: string;
@@ -25,21 +24,24 @@ const schema = {
     .describe("Max results to return (default 50, max 500)."),
 };
 
-export function registerListGroups(server: McpServer, client: EvolutionClient): void {
+export function registerListGroups(server: ToolRegistry): void {
   server.registerTool(
     "list_groups",
     {
       title: "List Groups",
-      description: "List WhatsApp groups for the pinned instance. Supports search and limit to prevent large payloads.",
+      description: "List WhatsApp groups for the selected instance. Supports search and limit to prevent large payloads.",
       inputSchema: schema,
     },
-    async (args) => {
+    async (args, { client, recipients }) => {
       try {
         const data = await client.get<GroupItem[]>(
           `/group/fetchAllGroups/${client.instanceName}?getParticipants=false`
         );
 
         let groups = Array.isArray(data) ? data : [];
+
+        // Recipient allowlist: never expose groups outside it
+        if (recipients.restricted) groups = groups.filter((g) => recipients.isAllowed(g.id));
 
         // Client-side search filter (Evolution API has no query filter)
         if (args.search) {

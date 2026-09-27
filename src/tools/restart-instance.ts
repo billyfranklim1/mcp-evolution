@@ -1,16 +1,15 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ToolRegistry } from "../registry.js";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
-import type { EvolutionClient } from "../evolution-client.js";
 
-export function registerRestartInstance(server: McpServer, client: EvolutionClient): void {
+export function registerRestartInstance(server: ToolRegistry): void {
   server.registerTool(
     "restart_instance",
     {
       title: "Restart Instance",
-      description: "Restart the pinned WhatsApp instance (reconnects without logging out).",
+      description: "Restart the selected WhatsApp instance (reconnects without logging out).",
       inputSchema: {},
     },
-    async () => {
+    async (_args, { client }) => {
       try {
         const data = await client.post(`/instance/restart/${client.instanceName}`, {});
         return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };

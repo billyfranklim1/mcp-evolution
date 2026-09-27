@@ -1,7 +1,6 @@
 import { z } from "zod";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ToolRegistry } from "../registry.js";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
-import type { EvolutionClient } from "../evolution-client.js";
 
 interface ContactItem {
   remoteJid?: string;
@@ -38,17 +37,17 @@ const schema = {
     .describe("Skip first N results (default 0)."),
 };
 
-export function registerFindContacts(server: McpServer, client: EvolutionClient): void {
+export function registerFindContacts(server: ToolRegistry): void {
   server.registerTool(
     "find_contacts",
     {
       title: "Find Contacts",
       description:
-        "Find contacts for the pinned instance. Supports search (substring on pushName/name/remoteJid), limit, and offset to prevent large payloads. " +
+        "Find contacts for the selected instance. Supports search (substring on pushName/name/remoteJid), limit, and offset to prevent large payloads. " +
         "Returns normalized { remoteJid, pushName, profilePicUrl, isBusiness } — extra fields dropped.",
       inputSchema: schema,
     },
-    async (args) => {
+    async (args, { client, recipients }) => {
       try {
         const limit = args.limit ?? 200;
         const offset = args.offset ?? 0;
@@ -60,6 +59,9 @@ export function registerFindContacts(server: McpServer, client: EvolutionClient)
         const raw = await client.post(`/chat/findContacts/${client.instanceName}`, payload);
 
         let contacts: ContactItem[] = Array.isArray(raw) ? raw : [];
+
+        // Recipient allowlist: never expose contacts outside it
+        if (recipients.restricted) contacts = contacts.filter((c) => recipients.isAllowed(c.remoteJid));
 
         // Client-side search only when no custom where was supplied
         if (!args.where && args.search) {

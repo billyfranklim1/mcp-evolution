@@ -1,7 +1,6 @@
 import { z } from "zod";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ToolRegistry } from "../registry.js";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
-import type { EvolutionClient } from "../evolution-client.js";
 
 const schema = {
   key: z.object({
@@ -12,15 +11,15 @@ const schema = {
   reaction: z.string().describe("Emoji reaction (e.g. '👍'). Send empty string to remove reaction."),
 };
 
-export function registerSendReaction(server: McpServer, client: EvolutionClient): void {
+export function registerSendReaction(server: ToolRegistry): void {
   server.registerTool(
     "send_reaction",
     {
       title: "Send Reaction",
-      description: "React to a WhatsApp message with an emoji via the pinned instance. Send empty string to remove reaction.",
+      description: "React to a WhatsApp message with an emoji via the selected instance. Send empty string to remove reaction.",
       inputSchema: schema,
     },
-    async (args) => {
+    async (args, { client }) => {
       try {
         const data = await client.post(`/message/sendReaction/${client.instanceName}`, {
           key: args.key,

@@ -1,21 +1,20 @@
 import { z } from "zod";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ToolRegistry } from "../registry.js";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
-import type { EvolutionClient } from "../evolution-client.js";
 
 const schema = {
   groupJid: z.string().min(1).describe("Group JID (e.g. 120363000000000000@g.us)"),
 };
 
-export function registerFetchInviteCode(server: McpServer, client: EvolutionClient): void {
+export function registerFetchInviteCode(server: ToolRegistry): void {
   server.registerTool(
     "fetch_invite_code",
     {
       title: "Fetch Invite Code",
-      description: "Fetch the invite code/link for a WhatsApp group via the pinned instance.",
+      description: "Fetch the invite code/link for a WhatsApp group via the selected instance.",
       inputSchema: schema,
     },
-    async (args) => {
+    async (args, { client }) => {
       try {
         const data = await client.get(
           `/group/inviteCode/${client.instanceName}?groupJid=${encodeURIComponent(args.groupJid)}`

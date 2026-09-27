@@ -1,7 +1,6 @@
 import { z } from "zod";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ToolRegistry } from "../registry.js";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
-import type { EvolutionClient } from "../evolution-client.js";
 
 const schema = {
   groupJid: z.string().min(1).describe("Group JID (e.g. 120363000000000000@g.us)"),
@@ -9,15 +8,15 @@ const schema = {
     .describe("announcement: only admins can send; not_announcement: all can send; locked/unlocked: group info edit"),
 };
 
-export function registerUpdateGroupSetting(server: McpServer, client: EvolutionClient): void {
+export function registerUpdateGroupSetting(server: ToolRegistry): void {
   server.registerTool(
     "update_group_setting",
     {
       title: "Update Group Setting",
-      description: "Update group settings (announcement mode, locked) via the pinned instance.",
+      description: "Update group settings (announcement mode, locked) via the selected instance.",
       inputSchema: schema,
     },
-    async (args) => {
+    async (args, { client }) => {
       try {
         const data = await client.post(
           `/group/updateSetting/${client.instanceName}?groupJid=${encodeURIComponent(args.groupJid)}`,

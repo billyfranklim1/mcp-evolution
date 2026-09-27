@@ -1,7 +1,6 @@
 import { z } from "zod";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ToolRegistry } from "../registry.js";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
-import type { EvolutionClient } from "../evolution-client.js";
 
 const schema = {
   subject: z.string().min(1).describe("Group name/subject"),
@@ -9,15 +8,15 @@ const schema = {
   participants: z.array(z.string().min(1)).min(1).describe("Array of participant phone numbers or JIDs"),
 };
 
-export function registerCreateGroup(server: McpServer, client: EvolutionClient): void {
+export function registerCreateGroup(server: ToolRegistry): void {
   server.registerTool(
     "create_group",
     {
       title: "Create Group",
-      description: "Create a new WhatsApp group via the pinned instance.",
+      description: "Create a new WhatsApp group via the selected instance.",
       inputSchema: schema,
     },
-    async (args) => {
+    async (args, { client }) => {
       try {
         const payload: Record<string, unknown> = {
           subject: args.subject,

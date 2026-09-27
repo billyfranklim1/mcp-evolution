@@ -1,7 +1,6 @@
 import { z } from "zod";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ToolRegistry } from "../registry.js";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
-import type { EvolutionClient } from "../evolution-client.js";
 import { JidSchema } from "../schemas.js";
 import { normalizeMessage, extractMessages } from "../util/normalize.js";
 
@@ -24,17 +23,17 @@ const schema = {
     .describe("Skip first N messages (default 0)."),
 };
 
-export function registerFindMessages(server: McpServer, client: EvolutionClient): void {
+export function registerFindMessages(server: ToolRegistry): void {
   server.registerTool(
     "find_messages",
     {
       title: "Find Messages",
       description:
-        "Find messages by remoteJid (phone number or group JID) for the pinned instance. " +
+        "Find messages by remoteJid (phone number or group JID) for the selected instance. " +
         "Returns normalized { id, fromMe, remoteJid, timestamp, type, text, mediaKey?, quotedMessageId? } — raw payload dropped to prevent overflow.",
       inputSchema: schema,
     },
-    async (args) => {
+    async (args, { client }) => {
       try {
         const limit = args.limit ?? 50;
         const offset = args.offset ?? 0;

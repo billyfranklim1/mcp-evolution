@@ -1,7 +1,6 @@
 import { z } from "zod";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ToolRegistry } from "../registry.js";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
-import type { EvolutionClient } from "../evolution-client.js";
 
 const schema = {
   numbers: z.array(z.string().min(1)).min(1).describe(
@@ -9,7 +8,7 @@ const schema = {
   ),
 };
 
-export function registerCheckNumber(server: McpServer, client: EvolutionClient): void {
+export function registerCheckNumber(server: ToolRegistry): void {
   server.registerTool(
     "check_number",
     {
@@ -17,7 +16,7 @@ export function registerCheckNumber(server: McpServer, client: EvolutionClient):
       description: "Check whether phone numbers have WhatsApp accounts. Returns exists, jid, and number for each.",
       inputSchema: schema,
     },
-    async (args) => {
+    async (args, { client }) => {
       try {
         const data = await client.post(`/chat/whatsappNumbers/${client.instanceName}`, {
           numbers: args.numbers,

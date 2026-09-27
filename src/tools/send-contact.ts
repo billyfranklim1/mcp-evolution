@@ -1,7 +1,6 @@
 import { z } from "zod";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ToolRegistry } from "../registry.js";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
-import type { EvolutionClient } from "../evolution-client.js";
 import { PhoneOrJidSchema } from "../schemas.js";
 
 const ContactSchema = z.object({
@@ -18,15 +17,15 @@ const schema = {
   contact: z.array(ContactSchema).min(1).describe("Array of contacts to share"),
 };
 
-export function registerSendContact(server: McpServer, client: EvolutionClient): void {
+export function registerSendContact(server: ToolRegistry): void {
   server.registerTool(
     "send_contact",
     {
       title: "Send Contact",
-      description: "Share one or more contacts (vCards) via the pinned WhatsApp instance.",
+      description: "Share one or more contacts (vCards) via the selected WhatsApp instance.",
       inputSchema: schema,
     },
-    async (args) => {
+    async (args, { client }) => {
       try {
         const data = await client.post(`/message/sendContact/${client.instanceName}`, {
           number: args.number,

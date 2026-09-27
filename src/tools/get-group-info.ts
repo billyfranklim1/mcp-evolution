@@ -1,7 +1,6 @@
 import { z } from "zod";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ToolRegistry } from "../registry.js";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
-import type { EvolutionClient } from "../evolution-client.js";
 
 interface RawParticipant {
   id?: string;
@@ -37,7 +36,7 @@ const schema = {
     ),
 };
 
-export function registerGetGroupInfo(server: McpServer, client: EvolutionClient): void {
+export function registerGetGroupInfo(server: ToolRegistry): void {
   server.registerTool(
     "get_group_info",
     {
@@ -49,7 +48,7 @@ export function registerGetGroupInfo(server: McpServer, client: EvolutionClient)
         "Set includeParticipants=true to get the full list (use sparingly for large groups).",
       inputSchema: schema,
     },
-    async (args) => {
+    async (args, { client }) => {
       try {
         const data = await client.get(
           `/group/findGroupInfos/${client.instanceName}?groupJid=${encodeURIComponent(args.groupJid)}`

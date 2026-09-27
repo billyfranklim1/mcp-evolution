@@ -1,22 +1,21 @@
 import { z } from "zod";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ToolRegistry } from "../registry.js";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
-import type { EvolutionClient } from "../evolution-client.js";
 import { PhoneOrJidSchema } from "../schemas.js";
 
 const schema = {
   number: PhoneOrJidSchema,
 };
 
-export function registerFetchProfilePicture(server: McpServer, client: EvolutionClient): void {
+export function registerFetchProfilePicture(server: ToolRegistry): void {
   server.registerTool(
     "fetch_profile_picture",
     {
       title: "Fetch Profile Picture",
-      description: "Fetch the profile picture URL of a WhatsApp contact via the pinned instance.",
+      description: "Fetch the profile picture URL of a WhatsApp contact via the selected instance.",
       inputSchema: schema,
     },
-    async (args) => {
+    async (args, { client }) => {
       try {
         const data = await client.post(`/chat/fetchProfilePictureUrl/${client.instanceName}`, {
           number: args.number,

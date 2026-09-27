@@ -1,7 +1,6 @@
 import { z } from "zod";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ToolRegistry } from "../registry.js";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
-import type { EvolutionClient } from "../evolution-client.js";
 import { PhoneOrJidSchema } from "../schemas.js";
 
 const schema = {
@@ -12,15 +11,15 @@ const schema = {
   address: z.string().optional().describe("Location address"),
 };
 
-export function registerSendLocation(server: McpServer, client: EvolutionClient): void {
+export function registerSendLocation(server: ToolRegistry): void {
   server.registerTool(
     "send_location",
     {
       title: "Send Location",
-      description: "Send a location pin message via the pinned WhatsApp instance.",
+      description: "Send a location pin message via the selected WhatsApp instance.",
       inputSchema: schema,
     },
-    async (args) => {
+    async (args, { client }) => {
       try {
         const payload: Record<string, unknown> = {
           number: args.number,

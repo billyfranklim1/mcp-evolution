@@ -1,7 +1,6 @@
 import { z } from "zod";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ToolRegistry } from "../registry.js";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
-import type { EvolutionClient } from "../evolution-client.js";
 import { PhoneOrJidSchema } from "../schemas.js";
 
 const schema = {
@@ -11,15 +10,15 @@ const schema = {
   values: z.array(z.string().min(1)).min(2).describe("Array of poll options (minimum 2)"),
 };
 
-export function registerSendPoll(server: McpServer, client: EvolutionClient): void {
+export function registerSendPoll(server: ToolRegistry): void {
   server.registerTool(
     "send_poll",
     {
       title: "Send Poll",
-      description: "Send a WhatsApp poll message via the pinned instance.",
+      description: "Send a WhatsApp poll message via the selected instance.",
       inputSchema: schema,
     },
-    async (args) => {
+    async (args, { client }) => {
       try {
         const data = await client.post(`/message/sendPoll/${client.instanceName}`, {
           number: args.number,

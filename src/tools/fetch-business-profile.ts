@@ -1,22 +1,21 @@
 import { z } from "zod";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ToolRegistry } from "../registry.js";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
-import type { EvolutionClient } from "../evolution-client.js";
 import { PhoneOrJidSchema } from "../schemas.js";
 
 const schema = {
   number: PhoneOrJidSchema,
 };
 
-export function registerFetchBusinessProfile(server: McpServer, client: EvolutionClient): void {
+export function registerFetchBusinessProfile(server: ToolRegistry): void {
   server.registerTool(
     "fetch_business_profile",
     {
       title: "Fetch Business Profile",
-      description: "Fetch the WhatsApp Business profile information of a contact via the pinned instance.",
+      description: "Fetch the WhatsApp Business profile information of a contact via the selected instance.",
       inputSchema: schema,
     },
-    async (args) => {
+    async (args, { client }) => {
       try {
         const data = await client.post(`/chat/fetchBusinessProfile/${client.instanceName}`, {
           number: args.number,

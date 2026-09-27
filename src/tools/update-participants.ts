@@ -1,7 +1,6 @@
 import { z } from "zod";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ToolRegistry } from "../registry.js";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
-import type { EvolutionClient } from "../evolution-client.js";
 
 const schema = {
   groupJid: z.string().min(1).describe("Group JID (e.g. 120363000000000000@g.us)"),
@@ -10,15 +9,15 @@ const schema = {
   participants: z.array(z.string().min(1)).min(1).describe("Phone numbers or JIDs of participants"),
 };
 
-export function registerUpdateParticipants(server: McpServer, client: EvolutionClient): void {
+export function registerUpdateParticipants(server: ToolRegistry): void {
   server.registerTool(
     "update_participants",
     {
       title: "Update Participants",
-      description: "Add, remove, promote, or demote participants in a WhatsApp group via the pinned instance.",
+      description: "Add, remove, promote, or demote participants in a WhatsApp group via the selected instance.",
       inputSchema: schema,
     },
-    async (args) => {
+    async (args, { client }) => {
       try {
         const data = await client.post(
           `/group/updateParticipant/${client.instanceName}?groupJid=${encodeURIComponent(args.groupJid)}`,

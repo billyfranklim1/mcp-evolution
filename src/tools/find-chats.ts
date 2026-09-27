@@ -1,7 +1,6 @@
 import { z } from "zod";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ToolRegistry } from "../registry.js";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
-import type { EvolutionClient } from "../evolution-client.js";
 
 interface ChatItem {
   remoteJid?: string;
@@ -38,16 +37,16 @@ const schema = {
     .describe("Skip first N results (default 0)."),
 };
 
-export function registerFindChats(server: McpServer, client: EvolutionClient): void {
+export function registerFindChats(server: ToolRegistry): void {
   server.registerTool(
     "find_chats",
     {
       title: "Find Chats",
       description:
-        "Find chats for the pinned instance. Supports search, limit, and offset to prevent large payloads.",
+        "Find chats for the selected instance. Supports search, limit, and offset to prevent large payloads.",
       inputSchema: schema,
     },
-    async (args) => {
+    async (args, { client, recipients }) => {
       try {
         const limit = args.limit ?? 50;
         const offset = args.offset ?? 0;
@@ -60,6 +59,9 @@ export function registerFindChats(server: McpServer, client: EvolutionClient): v
         const raw = await client.post(`/chat/findChats/${client.instanceName}`, payload);
 
         let chats: ChatItem[] = Array.isArray(raw) ? raw : [];
+
+        // Recipient allowlist: never expose chats outside it
+        if (recipients.restricted) chats = chats.filter((c) => recipients.isAllowed(c.remoteJid));
 
         // Client-side search only when no custom where was supplied
         if (!args.where && args.search) {

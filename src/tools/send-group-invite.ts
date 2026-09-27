@@ -1,7 +1,6 @@
 import { z } from "zod";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ToolRegistry } from "../registry.js";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
-import type { EvolutionClient } from "../evolution-client.js";
 
 const schema = {
   groupJid: z.string().min(1).describe("Group JID to invite people to"),
@@ -9,15 +8,15 @@ const schema = {
   numbers: z.array(z.string().min(1)).min(1).describe("Phone numbers or JIDs to send the invite to"),
 };
 
-export function registerSendGroupInvite(server: McpServer, client: EvolutionClient): void {
+export function registerSendGroupInvite(server: ToolRegistry): void {
   server.registerTool(
     "send_group_invite",
     {
       title: "Send Group Invite",
-      description: "Send a WhatsApp group invite link to specific contacts via the pinned instance.",
+      description: "Send a WhatsApp group invite link to specific contacts via the selected instance.",
       inputSchema: schema,
     },
-    async (args) => {
+    async (args, { client }) => {
       try {
         const data = await client.post(`/group/sendInvite/${client.instanceName}`, {
           groupJid: args.groupJid,

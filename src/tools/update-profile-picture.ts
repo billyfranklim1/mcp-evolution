@@ -1,21 +1,20 @@
 import { z } from "zod";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ToolRegistry } from "../registry.js";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
-import type { EvolutionClient } from "../evolution-client.js";
 
 const schema = {
   picture: z.string().min(1).describe("Base64 encoded image or URL for the profile picture"),
 };
 
-export function registerUpdateProfilePicture(server: McpServer, client: EvolutionClient): void {
+export function registerUpdateProfilePicture(server: ToolRegistry): void {
   server.registerTool(
     "update_profile_picture",
     {
       title: "Update Profile Picture",
-      description: "Update the profile picture of the pinned WhatsApp instance.",
+      description: "Update the profile picture of the selected WhatsApp instance.",
       inputSchema: schema,
     },
-    async (args) => {
+    async (args, { client }) => {
       try {
         const data = await client.post(`/chat/updateProfilePicture/${client.instanceName}`, {
           picture: args.picture,
