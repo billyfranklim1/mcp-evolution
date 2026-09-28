@@ -247,6 +247,26 @@ Several instances with a default and per-instance recipients:
 
 If a variable is defined both in `env` and in the file, Node keeps the value from `env` (the process environment wins). Keep secrets in the file and the guards in the JSON, where they are easy to review. With `npx` (`"command": "npx", "args": ["mcp-evolution"]`) there is no `--env-file`, so every variable has to go in `env`.
 
+## Run as a remote server (Streamable HTTP)
+
+Set `MCP_TRANSPORT=http` to serve MCP over HTTP instead of stdio, so clients connect by URL and nothing runs on their machine. The server is stateless: each request gets a fresh MCP server with the same guards.
+
+| Variable | Default | Notes |
+|---|---|---|
+| `MCP_TRANSPORT` | `stdio` | `stdio` or `http` |
+| `MCP_AUTH_TOKEN` | — | **Required** in HTTP mode, at least 32 characters. Clients send `Authorization: Bearer <token>` |
+| `PORT` | `3000` | |
+| `HOST` | `0.0.0.0` | Use `127.0.0.1` behind a reverse proxy |
+| `MCP_HTTP_PATH` | `/mcp` | |
+
+`GET /health` answers without auth for uptime checks. Put the server behind HTTPS (nginx, Caddy) and keep the guards (`EVOLUTION_ALLOWED_TOOLS`, `EVOLUTION_ALLOWED_RECIPIENTS`) in its environment: the token only proves who is calling, the guards still decide what they can do.
+
+Register it in Claude Code:
+
+```bash
+claude mcp add --transport http evolution https://your-host/mcp --header "Authorization: Bearer $MCP_AUTH_TOKEN"
+```
+
 ## Development
 
 ```bash
