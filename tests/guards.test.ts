@@ -275,6 +275,27 @@ describe("EVOLUTION_ALLOWED_RECIPIENTS", () => {
     expect(f).toHaveBeenCalledTimes(4);
   });
 
+  it("*@g.us admits every group but keeps direct chats restricted", async () => {
+    const f = fetchOk();
+    vi.stubGlobal("fetch", f);
+    const c = await connect({ EVOLUTION_INSTANCE: "a", EVOLUTION_ALLOWED_RECIPIENTS: `${ALLOWED},*@g.us` });
+    const group = await c.callTool({ name: "send_text", arguments: { number: "120363999999999999@g.us", text: "ok" } });
+    expect(group.isError).toBeFalsy();
+    const direct = await c.callTool({ name: "send_text", arguments: { number: ALLOWED, text: "ok" } });
+    expect(direct.isError).toBeFalsy();
+    const other = await c.callTool({ name: "send_text", arguments: { number: "5511999999999", text: "no" } });
+    expect(other.isError).toBe(true);
+    const bareDigits = await c.callTool({ name: "send_text", arguments: { number: "120363999999999999", text: "no" } });
+    expect(bareDigits.isError).toBe(true);
+    expect(f).toHaveBeenCalledTimes(2);
+  });
+
+  it("accepts *@g.us as the only entry", () => {
+    expect(() =>
+      loadConfig({ ...BASE_ENV, EVOLUTION_INSTANCE: "a", EVOLUTION_ALLOWED_RECIPIENTS: "*@g.us" })
+    ).not.toThrow();
+  });
+
   it("rejects other recipients without leaking the allowlist", async () => {
     const f = fetchOk();
     vi.stubGlobal("fetch", f);

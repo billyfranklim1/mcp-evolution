@@ -187,6 +187,8 @@ When set, any tool argument that identifies a chat — `number`, `numbers[]`, `r
 
 Matching normalises both sides to digits of the part before `@` (dropping a `:device` suffix). Accepted forms: `5511999999999`, `+55 (11) 99999-9999`, `5511999999999@s.whatsapp.net`, `…@c.us`, `123456789012345@lid`, `120363…@g.us`. A LID is a different identifier from the phone number — if a contact reaches you as `@lid`, list that LID too. Write Brazilian mobiles in full (`55 DD 9XXXXXXXX`); legacy JIDs without the extra `9` then match as well.
 
+**All groups:** add `*@g.us` to admit every group (any `…@g.us` JID, for reading and sending) while direct chats stay limited to the numbers you list, e.g. `5511999999999,*@g.us`. Groups must then be addressed by their full `@g.us` JID.
+
 **Per instance:** `EVOLUTION_ALLOWED_RECIPIENTS__<INSTANCE>` replaces the global list for that instance. `<INSTANCE>` is the instance name upper-cased with every character outside `A-Z0-9` replaced by `_` (e.g. `billy-franklim.2` → `EVOLUTION_ALLOWED_RECIPIENTS__BILLY_FRANKLIM_2`). Use `*` as the value to leave one instance unrestricted while a global list applies to the others.
 
 ### Secret redaction
@@ -246,6 +248,26 @@ Several instances with a default and per-instance recipients:
 ```
 
 If a variable is defined both in `env` and in the file, Node keeps the value from `env` (the process environment wins). Keep secrets in the file and the guards in the JSON, where they are easy to review. With `npx` (`"command": "npx", "args": ["mcp-evolution"]`) there is no `--env-file`, so every variable has to go in `env`.
+
+## Run as a remote server (Streamable HTTP)
+
+Set `MCP_TRANSPORT=http` to serve MCP over HTTP instead of stdio, so clients connect by URL and nothing runs on their machine. The server is stateless: each request gets a fresh MCP server with the same guards.
+
+| Variable | Default | Notes |
+|---|---|---|
+| `MCP_TRANSPORT` | `stdio` | `stdio` or `http` |
+| `MCP_AUTH_TOKEN` | — | **Required** in HTTP mode, at least 32 characters. Clients send `Authorization: Bearer <token>` |
+| `PORT` | `3000` | |
+| `HOST` | `0.0.0.0` | Use `127.0.0.1` behind a reverse proxy |
+| `MCP_HTTP_PATH` | `/mcp` | |
+
+`GET /health` answers without auth for uptime checks. Put the server behind HTTPS (nginx, Caddy) and keep the guards (`EVOLUTION_ALLOWED_TOOLS`, `EVOLUTION_ALLOWED_RECIPIENTS`) in its environment: the token only proves who is calling, the guards still decide what they can do.
+
+Register it in Claude Code:
+
+```bash
+claude mcp add --transport http evolution https://your-host/mcp --header "Authorization: Bearer $MCP_AUTH_TOKEN"
+```
 
 ## Development
 
