@@ -1,6 +1,6 @@
 {
   "name": "mcp-evolution",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "MCP server for Evolution API (WhatsApp) with instance allowlist, tool and recipient guards",
   "type": "module",
   "main": "dist/index.js",

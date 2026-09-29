@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.7.0
+
+### Added
+
+- Streamable HTTP transport: `MCP_TRANSPORT=http` serves MCP over HTTP (stateless) so clients
+  connect by URL. Requires `MCP_AUTH_TOKEN` (Bearer, min. 32 chars, constant-time check).
+  Also `PORT`, `HOST`, `MCP_HTTP_PATH`; `GET /health` answers without auth. stdio stays the default.
+- `*@g.us` in `EVOLUTION_ALLOWED_RECIPIENTS` admits every group (reading and sending) while
+  direct chats stay limited to the listed numbers.
+
 ## 0.6.0
 
 ### BREAKING CHANGES
