@@ -12,7 +12,7 @@ This server implements the [Model Context Protocol](https://modelcontextprotocol
 
 - **Transport**: stdio — the MCP host (Claude Desktop, Claude Code, etc.) spawns this process and speaks JSON-RPC over stdin/stdout.
 - **Server**: uses the high-level `McpServer` class from the official TypeScript SDK, which handles capability negotiation and session lifecycle automatically.
-- **Tools**: 50 tools registered via `registerTool()` with Zod-validated input schemas — the SDK enforces types before the handler runs.
+- **Tools**: 59 tools registered via `registerTool()` with Zod-validated input schemas — the SDK enforces types before the handler runs.
 
 All three connection parameters (API URL, API key, instance name) are pinned at startup via environment variables. The AI caller cannot switch instances mid-conversation.
 
@@ -38,15 +38,18 @@ All three connection parameters (API URL, API key, instance name) are pinned at 
 
 | Tool | Description |
 |------|-------------|
-| `find_chats` | Find chats, optionally filtered with a Prisma-style `where` clause |
+| `find_chats` | Find chats (includes `displayName`, `phoneJid` for LID chats) |
 | `find_contacts` | Find contacts, optionally filtered |
-| `find_messages` | Find messages by remoteJid with optional limit |
-| `get_chat_history` | Get message history for a contact or group JID |
+| `find_messages` | Find messages by remoteJid; merges LID/phone; includes `pushName` |
+| `get_chat_history` | Same as find_messages (history for a JID) |
+| `find_status_messages` | Message delivery/read status records |
 | `mark_as_read` | Mark one or more messages as read |
+| `mark_as_unread` | Mark a chat as unread |
 | `archive_chat` | Archive or unarchive a chat |
 | `delete_message` | Delete a message for everyone |
+| `update_message` | Edit a previously sent text message |
 | `fetch_profile_picture` | Fetch a contact's profile picture URL |
-| `download_media` | Download media from a message as base64 |
+| `download_media` | Download media from a message to disk |
 | `send_presence` | Send a presence update (typing, recording, etc.) |
 | `check_number` | Check whether phone numbers have WhatsApp accounts |
 
@@ -79,14 +82,17 @@ All three connection parameters (API URL, API key, instance name) are pinned at 
 | `send_group_invite` | Send a group invite link to specific contacts |
 | `update_participants` | Add, remove, promote, or demote group participants |
 | `update_group_setting` | Update group settings (announcement mode, locked) |
+| `toggle_group_ephemeral` | Enable/disable disappearing messages on a group |
 | `leave_group` | Leave a group |
 | `find_group_by_invite` | Get group info from an invite code without joining |
+| `get_group_resolved_participants` | Resolve group LID participants to phone + name (needs `EVOLUTION_DB_URL`) |
 
 ### Instance
 
 | Tool | Description |
 |------|-------------|
 | `connection_state` | Get the current connection state of the instance |
+| `fetch_instances` | List Evolution instances (debug) |
 | `restart_instance` | Restart the instance (reconnects without logging out) |
 | `logout_instance` | Logout the instance (clears session) |
 | `get_settings` | Get current instance settings |
@@ -122,6 +128,7 @@ npx mcp-evolution
 | `EVOLUTION_API_URL` | Yes | Base URL of your Evolution API (e.g. `http://localhost:8080`) |
 | `EVOLUTION_API_KEY` | Yes | Global API key from Evolution API config |
 | `EVOLUTION_INSTANCE` | Yes | Instance name created in Evolution API |
+| `EVOLUTION_DB_URL` | No | Postgres URL for `get_group_resolved_participants` (LID → phone) |
 
 Copy `.env.example` to `.env` for local development.
 
@@ -200,9 +207,12 @@ npm start
 | `find_chats` | POST | `/chat/findChats/{instance}` |
 | `find_contacts` | POST | `/chat/findContacts/{instance}` |
 | `find_messages` / `get_chat_history` | POST | `/chat/findMessages/{instance}` |
+| `find_status_messages` | POST | `/chat/findStatusMessage/{instance}` |
 | `mark_as_read` | POST | `/chat/markMessageAsRead/{instance}` |
+| `mark_as_unread` | POST | `/chat/markChatUnread/{instance}` |
 | `archive_chat` | POST | `/chat/archiveChat/{instance}` |
 | `delete_message` | DELETE | `/chat/deleteMessageForEveryone/{instance}` |
+| `update_message` | POST | `/chat/updateMessage/{instance}` |
 | `fetch_profile_picture` | POST | `/chat/fetchProfilePictureUrl/{instance}` |
 | `download_media` | POST | `/chat/getBase64FromMediaMessage/{instance}` |
 | `send_presence` | POST | `/chat/sendPresence/{instance}` |
@@ -227,9 +237,12 @@ npm start
 | `send_group_invite` | POST | `/group/sendInvite/{instance}` |
 | `update_participants` | POST | `/group/updateParticipant/{instance}?groupJid=` |
 | `update_group_setting` | POST | `/group/updateSetting/{instance}?groupJid=` |
+| `toggle_group_ephemeral` | POST | `/group/toggleEphemeral/{instance}?groupJid=` |
 | `leave_group` | DELETE | `/group/leaveGroup/{instance}?groupJid=` |
 | `find_group_by_invite` | GET | `/group/inviteInfo/{instance}?inviteCode=` |
+| `get_group_resolved_participants` | GET + DB | `/group/findGroupInfos/{instance}` + Postgres Message history |
 | `connection_state` | GET | `/instance/connectionState/{instance}` |
+| `fetch_instances` | GET | `/instance/fetchInstances` |
 | `restart_instance` | POST | `/instance/restart/{instance}` |
 | `logout_instance` | DELETE | `/instance/logout/{instance}` |
 | `get_settings` | GET | `/settings/find/{instance}` |

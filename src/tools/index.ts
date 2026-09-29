@@ -25,8 +25,11 @@ import { registerSendStatus } from "./send-status.js";
 
 // Chat
 import { registerMarkAsRead } from "./mark-as-read.js";
+import { registerMarkAsUnread } from "./mark-as-unread.js";
 import { registerArchiveChat } from "./archive-chat.js";
 import { registerDeleteMessage } from "./delete-message.js";
+import { registerUpdateMessage } from "./update-message.js";
+import { registerFindStatusMessages } from "./find-status-messages.js";
 import { registerFetchProfilePicture } from "./fetch-profile-picture.js";
 import { registerDownloadMedia } from "./download-media.js";
 import { registerSendPresence } from "./send-presence.js";
@@ -51,11 +54,13 @@ import { registerAcceptInvite } from "./accept-invite.js";
 import { registerSendGroupInvite } from "./send-group-invite.js";
 import { registerUpdateParticipants } from "./update-participants.js";
 import { registerUpdateGroupSetting } from "./update-group-setting.js";
+import { registerToggleGroupEphemeral } from "./toggle-group-ephemeral.js";
 import { registerLeaveGroup } from "./leave-group.js";
 import { registerFindGroupByInvite } from "./find-group-by-invite.js";
 
 // Instance
 import { registerConnectionState } from "./connection-state.js";
+import { registerFetchInstances } from "./fetch-instances.js";
 import { registerRestartInstance } from "./restart-instance.js";
 import { registerLogoutInstance } from "./logout-instance.js";
 import { registerGetSettings } from "./get-settings.js";
@@ -98,8 +103,11 @@ export function registerAllTools(server: McpServer, client: EvolutionClient): vo
 
   // Chat
   registerMarkAsRead(server, client);
+  registerMarkAsUnread(server, client);
   registerArchiveChat(server, client);
   registerDeleteMessage(server, client);
+  registerUpdateMessage(server, client);
+  registerFindStatusMessages(server, client);
   registerFetchProfilePicture(server, client);
   registerDownloadMedia(server, client);
   registerSendPresence(server, client);
@@ -124,11 +132,13 @@ export function registerAllTools(server: McpServer, client: EvolutionClient): vo
   registerSendGroupInvite(server, client);
   registerUpdateParticipants(server, client);
   registerUpdateGroupSetting(server, client);
+  registerToggleGroupEphemeral(server, client);
   registerLeaveGroup(server, client);
   registerFindGroupByInvite(server, client);
 
   // Instance
   registerConnectionState(server, client);
+  registerFetchInstances(server, client);
   registerRestartInstance(server, client);
   registerLogoutInstance(server, client);
   registerGetSettings(server, client);

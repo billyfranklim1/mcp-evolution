@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
 import type { EvolutionClient } from "../evolution-client.js";
+import { extractList } from "../util/extract-list.js";
 
 interface GroupItem {
   id: string;
@@ -35,11 +36,11 @@ export function registerListGroups(server: McpServer, client: EvolutionClient): 
     },
     async (args) => {
       try {
-        const data = await client.get<GroupItem[]>(
+        const data = await client.get(
           `/group/fetchAllGroups/${client.instanceName}?getParticipants=false`
         );
 
-        let groups = Array.isArray(data) ? data : [];
+        let groups = extractList(data, ["groups", "records"]) as GroupItem[];
 
         // Client-side search filter (Evolution API has no query filter)
         if (args.search) {
