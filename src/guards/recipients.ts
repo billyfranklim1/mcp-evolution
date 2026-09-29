@@ -8,8 +8,13 @@ import { ConfigError, GuardError } from "../errors.js";
  * "5511999999999@s.whatsapp.net", "...@c.us", "123456789012345@lid", "120363...@g.us".
  * Brazilian mobiles: list them in full (55 DD 9XXXXXXXX); a legacy JID without the extra "9"
  * (55 DD XXXXXXXX@s.whatsapp.net, common for area codes >= 31) is then matched too.
+ * "*@g.us" admits every group (any "...@g.us" JID) while direct chats stay restricted to the list.
  */
-export type RecipientRule = { unrestricted: true } | { unrestricted: false; keys: ReadonlySet<string> };
+export type RecipientRule =
+  | { unrestricted: true }
+  | { unrestricted: false; keys: ReadonlySet<string>; allGroups: boolean };
+
+const ALL_GROUPS = "*@g.us";
 
 const PHONE_DOMAINS = new Set(["", "s.whatsapp.net", "c.us"]);
 const OTHER_DOMAINS = new Set(["lid", "g.us"]);
@@ -61,21 +66,26 @@ export function recipientEnvName(instance: string): string {
   return `EVOLUTION_ALLOWED_RECIPIENTS__${instance.toUpperCase().replace(/[^A-Z0-9]/g, "_")}`;
 }
 
-/** Parse a comma-separated allowlist. "*" means unrestricted. */
+/** Parse a comma-separated allowlist. "*" means unrestricted; "*@g.us" admits every group. */
 export function parseRecipientList(raw: string, envName: string): RecipientRule {
   const entries = raw.split(",").map((s) => s.trim()).filter(Boolean);
   if (entries.length === 1 && entries[0] === "*") return { unrestricted: true };
 
   const keys = new Set<string>();
+  let allGroups = false;
   for (const entry of entries) {
+    if (entry.toLowerCase() === ALL_GROUPS) {
+      allGroups = true;
+      continue;
+    }
     // Store only the canonical form; Brazilian 9-digit variants are expanded on the
     // value side, and only for phone JIDs (never for @lid / @g.us).
     const k = normalizeRecipient(entry);
     if (!k) throw new ConfigError(`${envName} has an invalid entry "${entry}"`);
     keys.add(k);
   }
-  if (keys.size === 0) throw new ConfigError(`${envName} is set but lists no recipients`);
-  return { unrestricted: false, keys };
+  if (keys.size === 0 && !allGroups) throw new ConfigError(`${envName} is set but lists no recipients`);
+  return { unrestricted: false, keys, allGroups };
 }
 
 export class RecipientPolicy {
@@ -88,6 +98,7 @@ export class RecipientPolicy {
   isAllowed(value: string | undefined | null): boolean {
     if (!this.rule || this.rule.unrestricted) return true;
     if (!value) return false;
+    if (this.rule.allGroups && value.trim().toLowerCase().endsWith("@g.us") && recipientKeys(value)) return true;
     const keys = recipientKeys(value);
     const allowed = this.rule.keys;
     return keys !== null && keys.some((k) => allowed.has(k));

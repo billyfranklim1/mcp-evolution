@@ -187,6 +187,8 @@ When set, any tool argument that identifies a chat — `number`, `numbers[]`, `r
 
 Matching normalises both sides to digits of the part before `@` (dropping a `:device` suffix). Accepted forms: `5511999999999`, `+55 (11) 99999-9999`, `5511999999999@s.whatsapp.net`, `…@c.us`, `123456789012345@lid`, `120363…@g.us`. A LID is a different identifier from the phone number — if a contact reaches you as `@lid`, list that LID too. Write Brazilian mobiles in full (`55 DD 9XXXXXXXX`); legacy JIDs without the extra `9` then match as well.
 
+**All groups:** add `*@g.us` to admit every group (any `…@g.us` JID, for reading and sending) while direct chats stay limited to the numbers you list, e.g. `5511999999999,*@g.us`. Groups must then be addressed by their full `@g.us` JID.
+
 **Per instance:** `EVOLUTION_ALLOWED_RECIPIENTS__<INSTANCE>` replaces the global list for that instance. `<INSTANCE>` is the instance name upper-cased with every character outside `A-Z0-9` replaced by `_` (e.g. `billy-franklim.2` → `EVOLUTION_ALLOWED_RECIPIENTS__BILLY_FRANKLIM_2`). Use `*` as the value to leave one instance unrestricted while a global list applies to the others.
 
 ### Secret redaction
