@@ -1,9 +1,8 @@
 import { z } from "zod";
 import fs from "node:fs/promises";
 import path from "node:path";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ToolRegistry } from "../registry.js";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
-import type { EvolutionClient } from "../evolution-client.js";
 import { mimeToExt } from "../util/normalize.js";
 
 const MEDIA_DIR = "/tmp/mcp-evolution-media";
@@ -26,7 +25,7 @@ interface EvolutionMediaResponse {
   [key: string]: unknown;
 }
 
-export function registerDownloadMedia(server: McpServer, client: EvolutionClient): void {
+export function registerDownloadMedia(server: ToolRegistry): void {
   server.registerTool(
     "download_media",
     {
@@ -38,7 +37,7 @@ export function registerDownloadMedia(server: McpServer, client: EvolutionClient
         "Caller is responsible for cleanup (rm the file when done).",
       inputSchema: schema,
     },
-    async (args) => {
+    async (args, { client }) => {
       try {
         const payload: Record<string, unknown> = { message: args.message };
         if (args.convertToMp4 !== undefined) payload["convertToMp4"] = args.convertToMp4;

@@ -1,7 +1,7 @@
 {
   "name": "mcp-evolution",
-  "version": "0.5.0",
-  "description": "MCP server for Evolution API (WhatsApp) with instance pinning",
+  "version": "0.6.0",
+  "description": "MCP server for Evolution API (WhatsApp) with instance allowlist, tool and recipient guards",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
@@ -10,6 +10,7 @@
   "files": [
     "dist",
     "README.md",
+    "CHANGELOG.md",
     "LICENSE"
   ],
   "scripts": {

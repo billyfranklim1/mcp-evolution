@@ -1,7 +1,6 @@
 import { z } from "zod";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ToolRegistry } from "../registry.js";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
-import type { EvolutionClient } from "../evolution-client.js";
 
 interface RawParticipant {
   id?: string;
@@ -34,22 +33,29 @@ const schema = {
     ),
 };
 
-export function registerFindGroupByInvite(server: McpServer, client: EvolutionClient): void {
+export function registerFindGroupByInvite(server: ToolRegistry): void {
   server.registerTool(
     "find_group_by_invite",
     {
       title: "Find Group by Invite",
       description:
-        "Get group information from an invite code without joining via the pinned instance. " +
+        "Get group information from an invite code without joining via the selected instance. " +
         "Returns { id, subject, subjectOwner, subjectTime, size, desc, descId, creation, owner, admins } by default. " +
         "Set includeParticipants=true to also get the full participant list.",
       inputSchema: schema,
     },
-    async (args) => {
+    async (args, { client, recipients }) => {
       try {
         const data = await client.get(
           `/group/inviteInfo/${client.instanceName}?inviteCode=${encodeURIComponent(args.inviteCode)}`
         ) as RawGroupInfo;
+
+        if (recipients.restricted && !recipients.isAllowed(typeof data.id === "string" ? data.id : undefined)) {
+          return {
+            isError: true,
+            content: [{ type: "text" as const, text: "This group is not in the allowed recipients for this instance." }],
+          };
+        }
 
         const participants: RawParticipant[] = Array.isArray(data.participants) ? data.participants : [];
 

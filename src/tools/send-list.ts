@@ -1,7 +1,6 @@
 import { z } from "zod";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ToolRegistry } from "../registry.js";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
-import type { EvolutionClient } from "../evolution-client.js";
 import { PhoneOrJidSchema } from "../schemas.js";
 
 const RowSchema = z.object({
@@ -24,15 +23,15 @@ const schema = {
   sections: z.array(SectionSchema).min(1).describe("List sections, each with rows"),
 };
 
-export function registerSendList(server: McpServer, client: EvolutionClient): void {
+export function registerSendList(server: ToolRegistry): void {
   server.registerTool(
     "send_list",
     {
       title: "Send List",
-      description: "Send a WhatsApp list message (interactive menu) via the pinned instance.",
+      description: "Send a WhatsApp list message (interactive menu) via the selected instance.",
       inputSchema: schema,
     },
-    async (args) => {
+    async (args, { client }) => {
       try {
         const payload: Record<string, unknown> = {
           number: args.number,

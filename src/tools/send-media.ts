@@ -1,7 +1,6 @@
 import { z } from "zod";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ToolRegistry } from "../registry.js";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
-import type { EvolutionClient } from "../evolution-client.js";
 import { PhoneOrJidSchema } from "../schemas.js";
 
 const schema = {
@@ -17,16 +16,16 @@ const schema = {
   caption: z.string().optional().describe("Optional caption for the media"),
 };
 
-export function registerSendMedia(server: McpServer, client: EvolutionClient): void {
+export function registerSendMedia(server: ToolRegistry): void {
   server.registerTool(
     "send_media",
     {
       title: "Send Media",
       description:
-        "Send a media message (image, video, audio, document) via the pinned instance.",
+        "Send a media message (image, video, audio, document) via the selected instance.",
       inputSchema: schema,
     },
-    async (args) => {
+    async (args, { client }) => {
       try {
         const payload: Record<string, unknown> = {
           number: args.number,

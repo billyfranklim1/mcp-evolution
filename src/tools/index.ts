@@ -1,5 +1,5 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { EvolutionClient } from "../evolution-client.js";
+import type { ToolRegistry } from "../registry.js";
+import { registerListInstances } from "./list-instances.js";
 
 // Original tools
 import { registerListGroups } from "./list-groups.js";
@@ -73,76 +73,78 @@ import { registerHandleLabel } from "./handle-label.js";
 import { registerUpdateBlockStatus } from "./update-block-status.js";
 import { registerCheckNumber } from "./check-number.js";
 
-export function registerAllTools(server: McpServer, client: EvolutionClient): void {
+export function registerAllTools(server: ToolRegistry): void {
+  registerListInstances(server);
+
   // Original
-  registerListGroups(server, client);
-  registerFindChats(server, client);
-  registerFindContacts(server, client);
-  registerFindMessages(server, client);
-  registerGetChatHistory(server, client);
-  registerSendText(server, client);
-  registerSendMedia(server, client);
-  registerGetGroupInfo(server, client);
-  registerGetGroupResolvedParticipants(server, client);
+  registerListGroups(server);
+  registerFindChats(server);
+  registerFindContacts(server);
+  registerFindMessages(server);
+  registerGetChatHistory(server);
+  registerSendText(server);
+  registerSendMedia(server);
+  registerGetGroupInfo(server);
+  registerGetGroupResolvedParticipants(server);
 
   // Message
-  registerSendAudio(server, client);
-  registerSendSticker(server, client);
-  registerSendLocation(server, client);
-  registerSendContact(server, client);
-  registerSendReaction(server, client);
-  registerSendPoll(server, client);
-  registerSendList(server, client);
-  registerSendButton(server, client);
-  registerSendStatus(server, client);
+  registerSendAudio(server);
+  registerSendSticker(server);
+  registerSendLocation(server);
+  registerSendContact(server);
+  registerSendReaction(server);
+  registerSendPoll(server);
+  registerSendList(server);
+  registerSendButton(server);
+  registerSendStatus(server);
 
   // Chat
-  registerMarkAsRead(server, client);
-  registerArchiveChat(server, client);
-  registerDeleteMessage(server, client);
-  registerFetchProfilePicture(server, client);
-  registerDownloadMedia(server, client);
-  registerSendPresence(server, client);
+  registerMarkAsRead(server);
+  registerArchiveChat(server);
+  registerDeleteMessage(server);
+  registerFetchProfilePicture(server);
+  registerDownloadMedia(server);
+  registerSendPresence(server);
 
   // Profile
-  registerFetchBusinessProfile(server, client);
-  registerUpdateProfileName(server, client);
-  registerUpdateProfileStatus(server, client);
-  registerUpdateProfilePicture(server, client);
-  registerRemoveProfilePicture(server, client);
-  registerFetchPrivacy(server, client);
-  registerUpdatePrivacy(server, client);
+  registerFetchBusinessProfile(server);
+  registerUpdateProfileName(server);
+  registerUpdateProfileStatus(server);
+  registerUpdateProfilePicture(server);
+  registerRemoveProfilePicture(server);
+  registerFetchPrivacy(server);
+  registerUpdatePrivacy(server);
 
   // Group
-  registerCreateGroup(server, client);
-  registerUpdateGroupSubject(server, client);
-  registerUpdateGroupDescription(server, client);
-  registerUpdateGroupPicture(server, client);
-  registerFetchInviteCode(server, client);
-  registerRevokeInviteCode(server, client);
-  registerAcceptInvite(server, client);
-  registerSendGroupInvite(server, client);
-  registerUpdateParticipants(server, client);
-  registerUpdateGroupSetting(server, client);
-  registerLeaveGroup(server, client);
-  registerFindGroupByInvite(server, client);
+  registerCreateGroup(server);
+  registerUpdateGroupSubject(server);
+  registerUpdateGroupDescription(server);
+  registerUpdateGroupPicture(server);
+  registerFetchInviteCode(server);
+  registerRevokeInviteCode(server);
+  registerAcceptInvite(server);
+  registerSendGroupInvite(server);
+  registerUpdateParticipants(server);
+  registerUpdateGroupSetting(server);
+  registerLeaveGroup(server);
+  registerFindGroupByInvite(server);
 
   // Instance
-  registerConnectionState(server, client);
-  registerRestartInstance(server, client);
-  registerLogoutInstance(server, client);
-  registerGetSettings(server, client);
-  registerSetSettings(server, client);
+  registerConnectionState(server);
+  registerRestartInstance(server);
+  registerLogoutInstance(server);
+  registerGetSettings(server);
+  registerSetSettings(server);
 
   // Webhook
-  registerFindWebhook(server, client);
-  registerSetWebhook(server, client);
+  registerFindWebhook(server);
+  registerSetWebhook(server);
 
   // Label
-  registerFindLabels(server, client);
-  registerHandleLabel(server, client);
+  registerFindLabels(server);
+  registerHandleLabel(server);
 
   // Block & Misc
-  registerUpdateBlockStatus(server, client);
-  registerCheckNumber(server, client);
+  registerUpdateBlockStatus(server);
+  registerCheckNumber(server);
 }

@@ -1,7 +1,6 @@
 import { z } from "zod";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ToolRegistry } from "../registry.js";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
-import type { EvolutionClient } from "../evolution-client.js";
 
 const schema = {
   lastMessage: z.object({
@@ -15,15 +14,15 @@ const schema = {
   archive: z.boolean().describe("true to archive, false to unarchive"),
 };
 
-export function registerArchiveChat(server: McpServer, client: EvolutionClient): void {
+export function registerArchiveChat(server: ToolRegistry): void {
   server.registerTool(
     "archive_chat",
     {
       title: "Archive Chat",
-      description: "Archive or unarchive a WhatsApp chat via the pinned instance.",
+      description: "Archive or unarchive a WhatsApp chat via the selected instance.",
       inputSchema: schema,
     },
-    async (args) => {
+    async (args, { client }) => {
       try {
         const data = await client.post(`/chat/archiveChat/${client.instanceName}`, {
           lastMessage: args.lastMessage,

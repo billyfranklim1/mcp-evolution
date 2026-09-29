@@ -4,7 +4,7 @@
 [![license](https://img.shields.io/npm/l/mcp-evolution.svg)](./LICENSE)
 [![CI](https://github.com/billyfranklim1/mcp-evolution/actions/workflows/ci.yml/badge.svg)](https://github.com/billyfranklim1/mcp-evolution/actions/workflows/ci.yml)
 
-TypeScript MCP server for [Evolution API](https://github.com/EvolutionAPI/evolution-api) (WhatsApp) with instance pinning.
+TypeScript MCP server for [Evolution API](https://github.com/EvolutionAPI/evolution-api) (WhatsApp) with an instance allowlist and server-side guards (tool allowlist, recipient allowlist, secret redaction).
 
 ## Architecture
 
@@ -12,11 +12,20 @@ This server implements the [Model Context Protocol](https://modelcontextprotocol
 
 - **Transport**: stdio — the MCP host (Claude Desktop, Claude Code, etc.) spawns this process and speaks JSON-RPC over stdin/stdout.
 - **Server**: uses the high-level `McpServer` class from the official TypeScript SDK, which handles capability negotiation and session lifecycle automatically.
-- **Tools**: 50 tools registered via `registerTool()` with Zod-validated input schemas — the SDK enforces types before the handler runs.
+- **Tools**: 55 tools registered via `registerTool()` with Zod-validated input schemas — the SDK enforces types before the handler runs.
+- **Guards**: every tool goes through a registry that enforces the tool allowlist, the instance allowlist and the recipient allowlist, and redacts secrets from everything returned to the client.
 
-All three connection parameters (API URL, API key, instance name) are pinned at startup via environment variables. The AI caller cannot switch instances mid-conversation.
+The API URL, API key and the set of allowed instances are fixed at startup via environment variables. The AI caller can only pick an instance **from that list** — it can never address an instance outside it.
 
 ## Tools
+
+Tools marked **(D)** are [dangerous](#dangerous-tools-disabled-by-default) and disabled unless explicitly enabled.
+
+### Instances
+
+| Tool | Description |
+|------|-------------|
+| `list_instances` | List the allowed instances (names only), the default one and, optionally, each connection state |
 
 ### Message
 
@@ -32,7 +41,7 @@ All three connection parameters (API URL, API key, instance name) are pinned at 
 | `send_poll` | Send a poll message |
 | `send_list` | Send an interactive list/menu message |
 | `send_button` | Send an interactive button message |
-| `send_status` | Post a WhatsApp Status (story) update |
+| `send_status` (D) | Post a WhatsApp Status (story) update |
 
 ### Chat
 
@@ -44,9 +53,9 @@ All three connection parameters (API URL, API key, instance name) are pinned at 
 | `get_chat_history` | Get message history for a contact or group JID |
 | `mark_as_read` | Mark one or more messages as read |
 | `archive_chat` | Archive or unarchive a chat |
-| `delete_message` | Delete a message for everyone |
+| `delete_message` (D) | Delete a message for everyone |
 | `fetch_profile_picture` | Fetch a contact's profile picture URL |
-| `download_media` | Download media from a message as base64 |
+| `download_media` | Download media from a message to a local file |
 | `send_presence` | Send a presence update (typing, recording, etc.) |
 | `check_number` | Check whether phone numbers have WhatsApp accounts |
 
@@ -55,31 +64,31 @@ All three connection parameters (API URL, API key, instance name) are pinned at 
 | Tool | Description |
 |------|-------------|
 | `fetch_business_profile` | Fetch a contact's WhatsApp Business profile |
-| `update_profile_name` | Update the instance's display name |
-| `update_profile_status` | Update the instance's about/status text |
-| `update_profile_picture` | Update the instance's profile picture |
-| `remove_profile_picture` | Remove the instance's profile picture |
+| `update_profile_name` (D) | Update the instance's display name |
+| `update_profile_status` (D) | Update the instance's about/status text |
+| `update_profile_picture` (D) | Update the instance's profile picture |
+| `remove_profile_picture` (D) | Remove the instance's profile picture |
 | `fetch_privacy` | Fetch current privacy settings |
-| `update_privacy` | Update privacy settings |
-| `update_block_status` | Block or unblock a contact |
+| `update_privacy` (D) | Update privacy settings |
+| `update_block_status` (D) | Block or unblock a contact |
 
 ### Group
 
 | Tool | Description |
 |------|-------------|
-| `list_groups` | List all WhatsApp groups for the pinned instance |
+| `list_groups` | List all WhatsApp groups for the selected instance |
 | `get_group_info` | Get detailed info for a specific group by JID |
-| `create_group` | Create a new WhatsApp group |
-| `update_group_subject` | Update a group's name |
-| `update_group_description` | Update a group's description |
-| `update_group_picture` | Update a group's profile picture |
+| `create_group` (D) | Create a new WhatsApp group |
+| `update_group_subject` (D) | Update a group's name |
+| `update_group_description` (D) | Update a group's description |
+| `update_group_picture` (D) | Update a group's profile picture |
 | `fetch_invite_code` | Fetch the invite code/link for a group |
-| `revoke_invite_code` | Revoke and regenerate a group's invite code |
-| `accept_invite` | Accept a group invite by code |
+| `revoke_invite_code` (D) | Revoke and regenerate a group's invite code |
+| `accept_invite` (D) | Accept a group invite by code |
 | `send_group_invite` | Send a group invite link to specific contacts |
-| `update_participants` | Add, remove, promote, or demote group participants |
-| `update_group_setting` | Update group settings (announcement mode, locked) |
-| `leave_group` | Leave a group |
+| `update_participants` (D) | Add, remove, promote, or demote group participants |
+| `update_group_setting` (D) | Update group settings (announcement mode, locked) |
+| `leave_group` (D) | Leave a group |
 | `find_group_by_invite` | Get group info from an invite code without joining |
 
 ### Instance
@@ -87,17 +96,17 @@ All three connection parameters (API URL, API key, instance name) are pinned at 
 | Tool | Description |
 |------|-------------|
 | `connection_state` | Get the current connection state of the instance |
-| `restart_instance` | Restart the instance (reconnects without logging out) |
-| `logout_instance` | Logout the instance (clears session) |
+| `restart_instance` (D) | Restart the instance (reconnects without logging out) |
+| `logout_instance` (D) | Logout the instance (clears session) |
 | `get_settings` | Get current instance settings |
-| `set_settings` | Update instance settings |
+| `set_settings` (D) | Update instance settings |
 
 ### Webhook
 
 | Tool | Description |
 |------|-------------|
 | `find_webhook` | Get the current webhook configuration |
-| `set_webhook` | Configure the webhook |
+| `set_webhook` (D) | Configure the webhook |
 
 ### Label
 
@@ -121,47 +130,122 @@ npx mcp-evolution
 |----------|----------|-------------|
 | `EVOLUTION_API_URL` | Yes | Base URL of your Evolution API (e.g. `http://localhost:8080`) |
 | `EVOLUTION_API_KEY` | Yes | Global API key from Evolution API config |
-| `EVOLUTION_INSTANCE` | Yes | Instance name created in Evolution API |
+| `EVOLUTION_INSTANCE` | One of these two | Single instance name (legacy / simplest mode) |
+| `EVOLUTION_INSTANCES` | One of these two | Comma-separated list of allowed instances, e.g. `personal,support` |
+| `EVOLUTION_DEFAULT_INSTANCE` | No | Instance used when a call omits `instance` (must be in `EVOLUTION_INSTANCES`) |
+| `EVOLUTION_ALLOWED_TOOLS` | No | Comma-separated tool names and/or groups. Unset = every non-dangerous tool |
+| `EVOLUTION_ALLOWED_RECIPIENTS` | No | Comma-separated recipient allowlist (numbers, JIDs, LIDs, group JIDs). Unset = unrestricted |
+| `EVOLUTION_ALLOWED_RECIPIENTS__<INSTANCE>` | No | Per-instance recipient allowlist; overrides the global one for that instance |
+| `EVOLUTION_BASIC_AUTH` | No | Base64 `user:password` sent as `Authorization: Basic …` (e.g. nginx in front of Evolution) |
+| `EVOLUTION_DB_URL` | No | Evolution Postgres URL, only for `get_group_resolved_participants` |
 
-Copy `.env.example` to `.env` for local development.
+Invalid configuration (unknown tool names, default instance outside the list, both `EVOLUTION_INSTANCE` and `EVOLUTION_INSTANCES` set, malformed recipients…) aborts at startup with a message that never includes secret values.
 
-## Use with Claude Desktop / Claude Code
+### Instances
 
-Add to `~/.claude/claude_desktop_config.json` or project `.mcp.json`:
+- **One instance** (`EVOLUTION_INSTANCE=foo`, or `EVOLUTION_INSTANCES=foo`): works exactly like before — no `instance` parameter is added and every call goes to `foo`.
+- **Several instances** (`EVOLUTION_INSTANCES=foo,bar`): every instance-bound tool gets an optional `instance` parameter, validated against the list (a zod `enum`). Omitted → `EVOLUTION_DEFAULT_INSTANCE`; if no default is set the call fails asking for `instance`. Any value outside the list is rejected before any HTTP request is made.
+- `list_instances` returns the configured names and which one is the default; `includeState: true` also queries each connection state.
 
-```json
-{
-  "mcpServers": {
-    "whatsapp": {
-      "command": "npx",
-      "args": ["mcp-evolution"],
-      "env": {
-        "EVOLUTION_API_URL": "http://localhost:8080",
-        "EVOLUTION_API_KEY": "your-evolution-api-key",
-        "EVOLUTION_INSTANCE": "your-instance-name"
-      }
-    }
-  }
-}
+### Tool allowlist — `EVOLUTION_ALLOWED_TOOLS`
+
+When set, **only** the listed tools are registered; everything else does not even show up in `tools/list`. Entries are tool names or groups:
+
+| Group | Tools |
+|-------|-------|
+| `@read` | `list_instances`, `connection_state`, `list_groups`, `find_chats`, `find_contacts`, `find_messages`, `find_labels`, `find_webhook`, `find_group_by_invite`, `get_chat_history`, `get_group_info`, `get_group_resolved_participants`, `get_settings`, `check_number`, `download_media`, `fetch_business_profile`, `fetch_invite_code`, `fetch_privacy`, `fetch_profile_picture` |
+| `@send` | `send_text`, `send_media`, `send_audio`, `send_presence`, `mark_as_read` |
+| `@default` | every tool except the dangerous ones (what you get when the variable is unset) |
+| `@dangerous` | every dangerous tool (see below) |
+
+Examples: `@read,@send` · `@read,send_text` · `@default,send_status`.
+
+### Dangerous tools (disabled by default)
+
+These tools change account/group state irreversibly, broadcast, or can redirect traffic. They are **not registered** unless named explicitly in `EVOLUTION_ALLOWED_TOOLS` (or via `@dangerous`):
+
+| Tool | Why |
+|------|-----|
+| `send_status` | Broadcasts to all contacts; known to disconnect every linked device ([evolution-api#2196](https://github.com/EvolutionAPI/evolution-api/issues/2196)) |
+| `delete_message` | Deletes messages for everyone |
+| `update_privacy` | Changes account privacy |
+| `update_profile_name`, `update_profile_status`, `update_profile_picture`, `remove_profile_picture` | Change the public profile |
+| `update_block_status` | Blocks/unblocks contacts |
+| `create_group`, `update_group_subject`, `update_group_description`, `update_group_picture`, `update_group_setting`, `update_participants`, `revoke_invite_code`, `accept_invite`, `leave_group` | Change group state/membership |
+| `restart_instance`, `logout_instance` | Disrupt or destroy the WhatsApp session |
+| `set_settings` | Changes instance behaviour (auto-read, reject calls, always online…) |
+| `set_webhook` | Can redirect every incoming event to an arbitrary URL |
+
+To re-enable, list them: `EVOLUTION_ALLOWED_TOOLS=@default,send_status,delete_message` (or `@default,@dangerous` for the pre-0.6 behaviour).
+
+### Recipient allowlist — `EVOLUTION_ALLOWED_RECIPIENTS`
+
+When set, any tool argument that identifies a chat — `number`, `numbers[]`, `remoteJid`, `jid`, `groupJid`, `chat`, `participants[]`, `statusJidList[]`, including nested ones such as `readMessages[].remoteJid` or `key.remoteJid` — must match the list, otherwise the call is rejected before reaching Evolution (the error names the rejected value, never the list). In addition:
+
+- `find_chats`, `find_contacts` and `list_groups` only return entries in the list; `find_group_by_invite` refuses groups outside it.
+- `send_status` requires an explicit `statusJidList`; `accept_invite` is refused.
+
+Matching normalises both sides to digits of the part before `@` (dropping a `:device` suffix). Accepted forms: `5511999999999`, `+55 (11) 99999-9999`, `5511999999999@s.whatsapp.net`, `…@c.us`, `123456789012345@lid`, `120363…@g.us`. A LID is a different identifier from the phone number — if a contact reaches you as `@lid`, list that LID too. Write Brazilian mobiles in full (`55 DD 9XXXXXXXX`); legacy JIDs without the extra `9` then match as well.
+
+**Per instance:** `EVOLUTION_ALLOWED_RECIPIENTS__<INSTANCE>` replaces the global list for that instance. `<INSTANCE>` is the instance name upper-cased with every character outside `A-Z0-9` replaced by `_` (e.g. `billy-franklim.2` → `EVOLUTION_ALLOWED_RECIPIENTS__BILLY_FRANKLIM_2`). Use `*` as the value to leave one instance unrestricted while a global list applies to the others.
+
+### Secret redaction
+
+The API key, `EVOLUTION_BASIC_AUTH` (both the base64 value and the decoded `user:password`/password) and passwords embedded in `EVOLUTION_API_URL`/`EVOLUTION_DB_URL` are replaced by `[REDACTED]` in every tool result and error returned to the MCP client, including Evolution error bodies that echo request headers.
+
+## Use with Claude Code / Claude Desktop
+
+Keep secrets out of the MCP JSON by putting them in an env file and loading it with Node's `--env-file` (Node ≥ 20.6):
+
+```bash
+# /path/to/credentials.env  (chmod 600)
+EVOLUTION_API_URL=https://evolution.example.com
+EVOLUTION_API_KEY=...
+EVOLUTION_BASIC_AUTH=...
 ```
 
-Or point directly at the built binary if running from a local checkout:
+Single instance, read + basic send, one test recipient (`.mcp.json` or `claude mcp add-json`):
 
 ```json
 {
   "mcpServers": {
     "whatsapp": {
       "command": "node",
-      "args": ["/absolute/path/to/mcp-evolution/dist/index.js"],
+      "args": [
+        "--env-file=/path/to/credentials.env",
+        "/absolute/path/to/mcp-evolution/dist/index.js"
+      ],
       "env": {
-        "EVOLUTION_API_URL": "http://localhost:8080",
-        "EVOLUTION_API_KEY": "your-evolution-api-key",
-        "EVOLUTION_INSTANCE": "your-instance-name"
+        "EVOLUTION_INSTANCE": "my-instance",
+        "EVOLUTION_ALLOWED_TOOLS": "@read,@send",
+        "EVOLUTION_ALLOWED_RECIPIENTS": "5511999999999"
       }
     }
   }
 }
 ```
+
+Several instances with a default and per-instance recipients:
+
+```json
+{
+  "mcpServers": {
+    "whatsapp": {
+      "command": "node",
+      "args": ["--env-file=/path/to/credentials.env", "/absolute/path/to/mcp-evolution/dist/index.js"],
+      "env": {
+        "EVOLUTION_INSTANCES": "personal,support",
+        "EVOLUTION_DEFAULT_INSTANCE": "personal",
+        "EVOLUTION_ALLOWED_TOOLS": "@read,@send",
+        "EVOLUTION_ALLOWED_RECIPIENTS__PERSONAL": "5511999999999,123456789012345@lid",
+        "EVOLUTION_ALLOWED_RECIPIENTS__SUPPORT": "*"
+      }
+    }
+  }
+}
+```
+
+If a variable is defined both in `env` and in the file, Node keeps the value from `env` (the process environment wins). Keep secrets in the file and the guards in the JSON, where they are easy to review. With `npx` (`"command": "npx", "args": ["mcp-evolution"]`) there is no `--env-file`, so every variable has to go in `env`.
 
 ## Development
 
@@ -229,7 +313,7 @@ npm start
 | `update_group_setting` | POST | `/group/updateSetting/{instance}?groupJid=` |
 | `leave_group` | DELETE | `/group/leaveGroup/{instance}?groupJid=` |
 | `find_group_by_invite` | GET | `/group/inviteInfo/{instance}?inviteCode=` |
-| `connection_state` | GET | `/instance/connectionState/{instance}` |
+| `connection_state` / `list_instances` | GET | `/instance/connectionState/{instance}` |
 | `restart_instance` | POST | `/instance/restart/{instance}` |
 | `logout_instance` | DELETE | `/instance/logout/{instance}` |
 | `get_settings` | GET | `/settings/find/{instance}` |

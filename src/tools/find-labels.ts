@@ -1,6 +1,5 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ToolRegistry } from "../registry.js";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
-import type { EvolutionClient } from "../evolution-client.js";
 
 interface RawLabel {
   id?: string;
@@ -9,17 +8,17 @@ interface RawLabel {
   [key: string]: unknown;
 }
 
-export function registerFindLabels(server: McpServer, client: EvolutionClient): void {
+export function registerFindLabels(server: ToolRegistry): void {
   server.registerTool(
     "find_labels",
     {
       title: "Find Labels",
       description:
-        "List all WhatsApp labels for the pinned instance (requires WhatsApp Business). " +
+        "List all WhatsApp labels for the selected instance (requires WhatsApp Business). " +
         "Returns normalized { id, name, color } array — nested chat blobs dropped to prevent overflow.",
       inputSchema: {},
     },
-    async () => {
+    async (_args, { client }) => {
       try {
         const data = await client.get(`/label/findLabels/${client.instanceName}`);
         const raw: RawLabel[] = Array.isArray(data) ? data : [];

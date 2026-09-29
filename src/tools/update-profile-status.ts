@@ -1,21 +1,20 @@
 import { z } from "zod";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ToolRegistry } from "../registry.js";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
-import type { EvolutionClient } from "../evolution-client.js";
 
 const schema = {
   status: z.string().min(1).describe("New status text (about) for the WhatsApp profile"),
 };
 
-export function registerUpdateProfileStatus(server: McpServer, client: EvolutionClient): void {
+export function registerUpdateProfileStatus(server: ToolRegistry): void {
   server.registerTool(
     "update_profile_status",
     {
       title: "Update Profile Status",
-      description: "Update the 'about' status text of the pinned WhatsApp instance's profile.",
+      description: "Update the 'about' status text of the selected WhatsApp instance's profile.",
       inputSchema: schema,
     },
-    async (args) => {
+    async (args, { client }) => {
       try {
         const data = await client.post(`/chat/updateProfileStatus/${client.instanceName}`, {
           status: args.status,

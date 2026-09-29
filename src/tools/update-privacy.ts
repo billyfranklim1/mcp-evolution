@@ -1,7 +1,6 @@
 import { z } from "zod";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ToolRegistry } from "../registry.js";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
-import type { EvolutionClient } from "../evolution-client.js";
 
 const PrivacyValueSchema = z.enum(["all", "contacts", "contact_blacklist", "none"]);
 
@@ -15,15 +14,15 @@ const schema = {
   calladd: PrivacyValueSchema.optional().describe("Who can call"),
 };
 
-export function registerUpdatePrivacy(server: McpServer, client: EvolutionClient): void {
+export function registerUpdatePrivacy(server: ToolRegistry): void {
   server.registerTool(
     "update_privacy",
     {
       title: "Update Privacy Settings",
-      description: "Update privacy settings for the pinned WhatsApp instance. Values: all, contacts, contact_blacklist, none.",
+      description: "Update privacy settings for the selected WhatsApp instance. Values: all, contacts, contact_blacklist, none.",
       inputSchema: schema,
     },
-    async (args) => {
+    async (args, { client }) => {
       try {
         const payload: Record<string, unknown> = {};
         if (args.readreceipts !== undefined) payload["readreceipts"] = args.readreceipts;

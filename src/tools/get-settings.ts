@@ -1,16 +1,15 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ToolRegistry } from "../registry.js";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
-import type { EvolutionClient } from "../evolution-client.js";
 
-export function registerGetSettings(server: McpServer, client: EvolutionClient): void {
+export function registerGetSettings(server: ToolRegistry): void {
   server.registerTool(
     "get_settings",
     {
       title: "Get Settings",
-      description: "Get the current settings of the pinned WhatsApp instance.",
+      description: "Get the current settings of the selected WhatsApp instance.",
       inputSchema: {},
     },
-    async () => {
+    async (_args, { client }) => {
       try {
         const data = await client.get(`/settings/find/${client.instanceName}`);
         return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };

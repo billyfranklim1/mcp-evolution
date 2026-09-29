@@ -1,7 +1,6 @@
 import { z } from "zod";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ToolRegistry } from "../registry.js";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
-import type { EvolutionClient } from "../evolution-client.js";
 
 const schema = {
   rejectCall: z.boolean().optional().describe("Automatically reject incoming calls"),
@@ -13,15 +12,15 @@ const schema = {
   readStatus: z.boolean().optional().describe("Automatically read status updates"),
 };
 
-export function registerSetSettings(server: McpServer, client: EvolutionClient): void {
+export function registerSetSettings(server: ToolRegistry): void {
   server.registerTool(
     "set_settings",
     {
       title: "Set Settings",
-      description: "Update settings for the pinned WhatsApp instance.",
+      description: "Update settings for the selected WhatsApp instance.",
       inputSchema: schema,
     },
-    async (args) => {
+    async (args, { client }) => {
       try {
         const payload: Record<string, unknown> = {};
         if (args.rejectCall !== undefined) payload["rejectCall"] = args.rejectCall;

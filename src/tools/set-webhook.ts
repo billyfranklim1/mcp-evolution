@@ -1,7 +1,6 @@
 import { z } from "zod";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ToolRegistry } from "../registry.js";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
-import type { EvolutionClient } from "../evolution-client.js";
 
 const schema = {
   enabled: z.boolean().describe("Enable or disable the webhook"),
@@ -14,15 +13,15 @@ const schema = {
   headers: z.record(z.string()).optional().describe("Custom HTTP headers to include in webhook requests"),
 };
 
-export function registerSetWebhook(server: McpServer, client: EvolutionClient): void {
+export function registerSetWebhook(server: ToolRegistry): void {
   server.registerTool(
     "set_webhook",
     {
       title: "Set Webhook",
-      description: "Configure the webhook for the pinned WhatsApp instance.",
+      description: "Configure the webhook for the selected WhatsApp instance.",
       inputSchema: schema,
     },
-    async (args) => {
+    async (args, { client }) => {
       try {
         const webhook: Record<string, unknown> = {
           enabled: args.enabled,

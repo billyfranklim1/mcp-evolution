@@ -1,21 +1,20 @@
 import { z } from "zod";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ToolRegistry } from "../registry.js";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
-import type { EvolutionClient } from "../evolution-client.js";
 
 const schema = {
   inviteCode: z.string().min(1).describe("Group invite code (the part after https://chat.whatsapp.com/)"),
 };
 
-export function registerAcceptInvite(server: McpServer, client: EvolutionClient): void {
+export function registerAcceptInvite(server: ToolRegistry): void {
   server.registerTool(
     "accept_invite",
     {
       title: "Accept Invite",
-      description: "Accept a WhatsApp group invite by invite code via the pinned instance.",
+      description: "Accept a WhatsApp group invite by invite code via the selected instance.",
       inputSchema: schema,
     },
-    async (args) => {
+    async (args, { client }) => {
       try {
         const data = await client.get(
           `/group/acceptInviteCode/${client.instanceName}?inviteCode=${encodeURIComponent(args.inviteCode)}`

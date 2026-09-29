@@ -1,16 +1,15 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ToolRegistry } from "../registry.js";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
-import type { EvolutionClient } from "../evolution-client.js";
 
-export function registerFetchPrivacy(server: McpServer, client: EvolutionClient): void {
+export function registerFetchPrivacy(server: ToolRegistry): void {
   server.registerTool(
     "fetch_privacy",
     {
       title: "Fetch Privacy Settings",
-      description: "Fetch the current privacy settings of the pinned WhatsApp instance.",
+      description: "Fetch the current privacy settings of the selected WhatsApp instance.",
       inputSchema: {},
     },
-    async () => {
+    async (_args, { client }) => {
       try {
         const data = await client.get(`/chat/fetchPrivacySettings/${client.instanceName}`);
         return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };

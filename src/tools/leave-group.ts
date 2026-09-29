@@ -1,21 +1,20 @@
 import { z } from "zod";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ToolRegistry } from "../registry.js";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
-import type { EvolutionClient } from "../evolution-client.js";
 
 const schema = {
   groupJid: z.string().min(1).describe("Group JID to leave (e.g. 120363000000000000@g.us)"),
 };
 
-export function registerLeaveGroup(server: McpServer, client: EvolutionClient): void {
+export function registerLeaveGroup(server: ToolRegistry): void {
   server.registerTool(
     "leave_group",
     {
       title: "Leave Group",
-      description: "Leave a WhatsApp group via the pinned instance.",
+      description: "Leave a WhatsApp group via the selected instance.",
       inputSchema: schema,
     },
-    async (args) => {
+    async (args, { client }) => {
       try {
         const data = await client.delete(
           `/group/leaveGroup/${client.instanceName}?groupJid=${encodeURIComponent(args.groupJid)}`

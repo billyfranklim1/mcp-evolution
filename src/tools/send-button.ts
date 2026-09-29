@@ -1,7 +1,6 @@
 import { z } from "zod";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ToolRegistry } from "../registry.js";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
-import type { EvolutionClient } from "../evolution-client.js";
 import { PhoneOrJidSchema } from "../schemas.js";
 
 const ButtonSchema = z.object({
@@ -20,15 +19,15 @@ const schema = {
   buttons: z.array(ButtonSchema).min(1).describe("Array of buttons (max 3)"),
 };
 
-export function registerSendButton(server: McpServer, client: EvolutionClient): void {
+export function registerSendButton(server: ToolRegistry): void {
   server.registerTool(
     "send_button",
     {
       title: "Send Button",
-      description: "Send a WhatsApp interactive button message via the pinned instance (max 3 buttons).",
+      description: "Send a WhatsApp interactive button message via the selected instance (max 3 buttons).",
       inputSchema: schema,
     },
-    async (args) => {
+    async (args, { client }) => {
       try {
         const payload: Record<string, unknown> = {
           number: args.number,

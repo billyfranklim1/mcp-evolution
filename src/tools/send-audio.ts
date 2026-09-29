@@ -1,7 +1,6 @@
 import { z } from "zod";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ToolRegistry } from "../registry.js";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
-import type { EvolutionClient } from "../evolution-client.js";
 import { PhoneOrJidSchema } from "../schemas.js";
 
 const schema = {
@@ -11,15 +10,15 @@ const schema = {
   delay: z.number().int().nonnegative().optional().describe("Delay in milliseconds before sending"),
 };
 
-export function registerSendAudio(server: McpServer, client: EvolutionClient): void {
+export function registerSendAudio(server: ToolRegistry): void {
   server.registerTool(
     "send_audio",
     {
       title: "Send Audio",
-      description: "Send a WhatsApp audio (PTT voice note) via the pinned instance.",
+      description: "Send a WhatsApp audio (PTT voice note) via the selected instance.",
       inputSchema: schema,
     },
-    async (args) => {
+    async (args, { client }) => {
       try {
         const payload: Record<string, unknown> = { number: args.number, audio: args.audio };
         if (args.encoding !== undefined) payload["encoding"] = args.encoding;

@@ -1,16 +1,15 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ToolRegistry } from "../registry.js";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
-import type { EvolutionClient } from "../evolution-client.js";
 
-export function registerLogoutInstance(server: McpServer, client: EvolutionClient): void {
+export function registerLogoutInstance(server: ToolRegistry): void {
   server.registerTool(
     "logout_instance",
     {
       title: "Logout Instance",
-      description: "Logout the pinned WhatsApp instance (disconnects and clears session — requires QR scan to reconnect).",
+      description: "Logout the selected WhatsApp instance (disconnects and clears session — requires QR scan to reconnect).",
       inputSchema: {},
     },
-    async () => {
+    async (_args, { client }) => {
       try {
         const data = await client.delete(`/instance/logout/${client.instanceName}`);
         return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };

@@ -1,7 +1,6 @@
 import { z } from "zod";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ToolRegistry } from "../registry.js";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
-import type { EvolutionClient } from "../evolution-client.js";
 
 const schema = {
   type: z.enum(["text", "image", "video", "audio"]).describe("Status content type"),
@@ -12,15 +11,15 @@ const schema = {
   statusJidList: z.array(z.string()).optional().describe("Specific JIDs to send status to (omit for all contacts)"),
 };
 
-export function registerSendStatus(server: McpServer, client: EvolutionClient): void {
+export function registerSendStatus(server: ToolRegistry): void {
   server.registerTool(
     "send_status",
     {
       title: "Send Status",
-      description: "Post a WhatsApp Status update (story) via the pinned instance.",
+      description: "Post a WhatsApp Status update (story) via the selected instance.",
       inputSchema: schema,
     },
-    async (args) => {
+    async (args, { client }) => {
       try {
         const payload: Record<string, unknown> = {
           type: args.type,

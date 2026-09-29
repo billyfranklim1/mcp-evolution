@@ -1,12 +1,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { EvolutionClient } from "../src/evolution-client.js";
 import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
+import { extractMessages } from "../src/util/normalize.js";
 
-const BASE_CONFIG = {
-  EVOLUTION_API_URL: "http://localhost:8080",
-  EVOLUTION_API_KEY: "test-key",
-  EVOLUTION_INSTANCE: "test-instance",
+const BASE_OPTS = {
+  apiUrl: "http://localhost:8080",
+  apiKey: "test-key",
 };
+
+function makeClient(extra: { basicAuth?: string } = {}) {
+  return new EvolutionClient({ ...BASE_OPTS, ...extra, instances: ["test-instance"] }).forInstance("test-instance");
+}
 
 function makeFetchMock(status: number, body: unknown) {
   return vi.fn().mockResolvedValue({
@@ -21,11 +25,21 @@ describe("EvolutionClient", () => {
     vi.unstubAllGlobals();
   });
 
+  it("keeps the API key and adds optional nginx Basic Auth", async () => {
+    const mockFetch = makeFetchMock(200, { state: "open" });
+    vi.stubGlobal("fetch", mockFetch);
+    const client = makeClient({ basicAuth: "dGVzdDp0ZXN0" });
+    await client.get("/instance/connectionState/test-instance");
+    const headers = mockFetch.mock.calls[0][1].headers;
+    expect(headers.apikey).toBe("test-key");
+    expect(headers.Authorization).toBe("Basic dGVzdDp0ZXN0");
+  });
+
   it("GET list_groups — builds correct URL and headers", async () => {
     const mockFetch = makeFetchMock(200, [{ id: "g1@g.us", subject: "Test", size: 3, owner: "x" }]);
     vi.stubGlobal("fetch", mockFetch);
 
-    const client = new EvolutionClient(BASE_CONFIG);
+    const client = makeClient();
     const data = await client.get("/group/fetchAllGroups/test-instance?getParticipants=false");
 
     expect(mockFetch).toHaveBeenCalledOnce();
@@ -39,7 +53,7 @@ describe("EvolutionClient", () => {
     const mockFetch = makeFetchMock(200, { messages: [] });
     vi.stubGlobal("fetch", mockFetch);
 
-    const client = new EvolutionClient(BASE_CONFIG);
+    const client = makeClient();
     await client.post("/chat/findMessages/test-instance", {
       where: { key: { remoteJid: "5511999999999@s.whatsapp.net" } },
       limit: 10,
@@ -55,7 +69,7 @@ describe("EvolutionClient", () => {
     const mockFetch = makeFetchMock(200, { messages: [] });
     vi.stubGlobal("fetch", mockFetch);
 
-    const client = new EvolutionClient(BASE_CONFIG);
+    const client = makeClient();
     // Simulate what the tool handler does when no limit is provided
     const limit = undefined ?? 50;
     await client.post("/chat/findMessages/test-instance", {
@@ -72,7 +86,7 @@ describe("EvolutionClient", () => {
     const mockFetch = makeFetchMock(200, { key: { id: "msg-id-123" } });
     vi.stubGlobal("fetch", mockFetch);
 
-    const client = new EvolutionClient(BASE_CONFIG);
+    const client = makeClient();
     const result = await client.post("/message/sendText/test-instance", {
       number: "5511999999999",
       text: "Hello world",
@@ -91,7 +105,7 @@ describe("EvolutionClient", () => {
     const mockFetch = makeFetchMock(200, { key: { id: "media-id" } });
     vi.stubGlobal("fetch", mockFetch);
 
-    const client = new EvolutionClient(BASE_CONFIG);
+    const client = makeClient();
     await client.post("/message/sendMedia/test-instance", {
       number: "5511999999999",
       mediatype: "image",
@@ -110,7 +124,7 @@ describe("EvolutionClient", () => {
     const mockFetch = makeFetchMock(200, { id: "120363@g.us", subject: "My Group" });
     vi.stubGlobal("fetch", mockFetch);
 
-    const client = new EvolutionClient(BASE_CONFIG);
+    const client = makeClient();
     await client.get(
       `/group/findGroupInfos/test-instance?groupJid=${encodeURIComponent("120363@g.us")}`
     );
@@ -123,7 +137,7 @@ describe("EvolutionClient", () => {
     const mockFetch = makeFetchMock(400, '{"message":"Bad request"}');
     vi.stubGlobal("fetch", mockFetch);
 
-    const client = new EvolutionClient(BASE_CONFIG);
+    const client = makeClient();
 
     await expect(client.post("/message/sendText/test-instance", {})).rejects.toThrow(McpError);
     await expect(client.post("/message/sendText/test-instance", {})).rejects.toMatchObject({
@@ -132,7 +146,7 @@ describe("EvolutionClient", () => {
   });
 
   it("instanceName — returns correct instance from config", () => {
-    const client = new EvolutionClient(BASE_CONFIG);
+    const client = makeClient();
     expect(client.instanceName).toBe("test-instance");
   });
 
@@ -141,7 +155,7 @@ describe("EvolutionClient", () => {
   it("POST send_audio — correct URL and body", async () => {
     const mockFetch = makeFetchMock(200, { key: { id: "audio-1" } });
     vi.stubGlobal("fetch", mockFetch);
-    const client = new EvolutionClient(BASE_CONFIG);
+    const client = makeClient();
     await client.post("/message/sendWhatsAppAudio/test-instance", {
       number: "5511999999999",
       audio: "https://example.com/audio.ogg",
@@ -158,7 +172,7 @@ describe("EvolutionClient", () => {
   it("POST send_sticker — correct URL and body", async () => {
     const mockFetch = makeFetchMock(200, { key: { id: "sticker-1" } });
     vi.stubGlobal("fetch", mockFetch);
-    const client = new EvolutionClient(BASE_CONFIG);
+    const client = makeClient();
     await client.post("/message/sendSticker/test-instance", {
       number: "5511999999999",
       sticker: "https://example.com/sticker.webp",
@@ -173,7 +187,7 @@ describe("EvolutionClient", () => {
   it("POST send_location — correct body with optional fields", async () => {
     const mockFetch = makeFetchMock(200, { key: { id: "loc-1" } });
     vi.stubGlobal("fetch", mockFetch);
-    const client = new EvolutionClient(BASE_CONFIG);
+    const client = makeClient();
     await client.post("/message/sendLocation/test-instance", {
       number: "5511999999999",
       latitude: -23.5505,
@@ -192,7 +206,7 @@ describe("EvolutionClient", () => {
   it("POST send_reaction — correct key structure", async () => {
     const mockFetch = makeFetchMock(200, { key: { id: "react-1" } });
     vi.stubGlobal("fetch", mockFetch);
-    const client = new EvolutionClient(BASE_CONFIG);
+    const client = makeClient();
     await client.post("/message/sendReaction/test-instance", {
       key: { remoteJid: "5511999999999@s.whatsapp.net", fromMe: false, id: "msg-123" },
       reaction: "👍",
@@ -207,7 +221,7 @@ describe("EvolutionClient", () => {
   it("POST send_poll — correct values array", async () => {
     const mockFetch = makeFetchMock(200, { key: { id: "poll-1" } });
     vi.stubGlobal("fetch", mockFetch);
-    const client = new EvolutionClient(BASE_CONFIG);
+    const client = makeClient();
     await client.post("/message/sendPoll/test-instance", {
       number: "5511999999999",
       name: "Favorite color?",
@@ -223,7 +237,7 @@ describe("EvolutionClient", () => {
   it("POST send_list — includes sections", async () => {
     const mockFetch = makeFetchMock(200, { key: { id: "list-1" } });
     vi.stubGlobal("fetch", mockFetch);
-    const client = new EvolutionClient(BASE_CONFIG);
+    const client = makeClient();
     await client.post("/message/sendList/test-instance", {
       number: "5511999999999",
       title: "Menu",
@@ -240,7 +254,7 @@ describe("EvolutionClient", () => {
   it("POST send_button — includes buttons array", async () => {
     const mockFetch = makeFetchMock(200, { key: { id: "btn-1" } });
     vi.stubGlobal("fetch", mockFetch);
-    const client = new EvolutionClient(BASE_CONFIG);
+    const client = makeClient();
     await client.post("/message/sendButtons/test-instance", {
       number: "5511999999999",
       title: "Choose",
@@ -256,7 +270,7 @@ describe("EvolutionClient", () => {
   it("POST send_status — correct type and content", async () => {
     const mockFetch = makeFetchMock(200, { key: { id: "status-1" } });
     vi.stubGlobal("fetch", mockFetch);
-    const client = new EvolutionClient(BASE_CONFIG);
+    const client = makeClient();
     await client.post("/message/sendStatus/test-instance", {
       type: "text",
       content: "Hello status!",
@@ -274,7 +288,7 @@ describe("EvolutionClient", () => {
   it("POST mark_as_read — correct readMessages array", async () => {
     const mockFetch = makeFetchMock(200, { message: "ok" });
     vi.stubGlobal("fetch", mockFetch);
-    const client = new EvolutionClient(BASE_CONFIG);
+    const client = makeClient();
     await client.post("/chat/markMessageAsRead/test-instance", {
       readMessages: [{ remoteJid: "5511@s.whatsapp.net", fromMe: false, id: "msg-1" }],
     });
@@ -287,7 +301,7 @@ describe("EvolutionClient", () => {
   it("DELETE delete_message — uses DELETE method with body", async () => {
     const mockFetch = makeFetchMock(200, { message: "deleted" });
     vi.stubGlobal("fetch", mockFetch);
-    const client = new EvolutionClient(BASE_CONFIG);
+    const client = makeClient();
     await client.delete("/chat/deleteMessageForEveryone/test-instance", {
       id: "msg-abc",
       remoteJid: "5511@s.whatsapp.net",
@@ -303,7 +317,7 @@ describe("EvolutionClient", () => {
   it("POST send_presence — correct presence field", async () => {
     const mockFetch = makeFetchMock(200, { message: "ok" });
     vi.stubGlobal("fetch", mockFetch);
-    const client = new EvolutionClient(BASE_CONFIG);
+    const client = makeClient();
     await client.post("/chat/sendPresence/test-instance", {
       number: "5511999999999",
       presence: "composing",
@@ -319,7 +333,7 @@ describe("EvolutionClient", () => {
   it("POST check_number — correct numbers array", async () => {
     const mockFetch = makeFetchMock(200, [{ exists: true, jid: "5511@s.whatsapp.net", number: "5511" }]);
     vi.stubGlobal("fetch", mockFetch);
-    const client = new EvolutionClient(BASE_CONFIG);
+    const client = makeClient();
     const result = await client.post("/chat/whatsappNumbers/test-instance", {
       numbers: ["5511999999999"],
     });
@@ -335,7 +349,7 @@ describe("EvolutionClient", () => {
   it("GET fetch_privacy — correct URL, no body", async () => {
     const mockFetch = makeFetchMock(200, { readreceipts: "all" });
     vi.stubGlobal("fetch", mockFetch);
-    const client = new EvolutionClient(BASE_CONFIG);
+    const client = makeClient();
     await client.get("/chat/fetchPrivacySettings/test-instance");
     const [url, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("http://localhost:8080/chat/fetchPrivacySettings/test-instance");
@@ -346,7 +360,7 @@ describe("EvolutionClient", () => {
   it("POST update_privacy — sends only provided fields", async () => {
     const mockFetch = makeFetchMock(200, { message: "ok" });
     vi.stubGlobal("fetch", mockFetch);
-    const client = new EvolutionClient(BASE_CONFIG);
+    const client = makeClient();
     await client.post("/chat/updatePrivacySettings/test-instance", {
       readreceipts: "all",
       profile: "contacts",
@@ -360,7 +374,7 @@ describe("EvolutionClient", () => {
   it("POST update_profile_name — sends name field", async () => {
     const mockFetch = makeFetchMock(200, { message: "ok" });
     vi.stubGlobal("fetch", mockFetch);
-    const client = new EvolutionClient(BASE_CONFIG);
+    const client = makeClient();
     await client.post("/chat/updateProfileName/test-instance", { name: "New Name" });
     const [url, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("http://localhost:8080/chat/updateProfileName/test-instance");
@@ -371,7 +385,7 @@ describe("EvolutionClient", () => {
   it("DELETE remove_profile_picture — DELETE with no body", async () => {
     const mockFetch = makeFetchMock(200, { message: "ok" });
     vi.stubGlobal("fetch", mockFetch);
-    const client = new EvolutionClient(BASE_CONFIG);
+    const client = makeClient();
     await client.delete("/chat/removeProfilePicture/test-instance");
     const [url, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("http://localhost:8080/chat/removeProfilePicture/test-instance");
@@ -384,7 +398,7 @@ describe("EvolutionClient", () => {
   it("POST create_group — sends subject and participants", async () => {
     const mockFetch = makeFetchMock(200, { groupJid: "group@g.us" });
     vi.stubGlobal("fetch", mockFetch);
-    const client = new EvolutionClient(BASE_CONFIG);
+    const client = makeClient();
     await client.post("/group/create/test-instance", {
       subject: "My Group",
       participants: ["5511999999999"],
@@ -399,7 +413,7 @@ describe("EvolutionClient", () => {
   it("POST update_participants — groupJid in query, action in body", async () => {
     const mockFetch = makeFetchMock(200, { participants: [] });
     vi.stubGlobal("fetch", mockFetch);
-    const client = new EvolutionClient(BASE_CONFIG);
+    const client = makeClient();
     await client.post(
       `/group/updateParticipant/test-instance?groupJid=${encodeURIComponent("120363@g.us")}`,
       { action: "add", participants: ["5511999999999"] }
@@ -413,7 +427,7 @@ describe("EvolutionClient", () => {
   it("GET fetch_invite_code — groupJid in query", async () => {
     const mockFetch = makeFetchMock(200, { inviteCode: "abc123" });
     vi.stubGlobal("fetch", mockFetch);
-    const client = new EvolutionClient(BASE_CONFIG);
+    const client = makeClient();
     await client.get(`/group/inviteCode/test-instance?groupJid=${encodeURIComponent("120363@g.us")}`);
     const [url] = mockFetch.mock.calls[0] as [string, RequestInit];
     expect(url).toContain("/group/inviteCode/test-instance");
@@ -423,7 +437,7 @@ describe("EvolutionClient", () => {
   it("DELETE leave_group — DELETE method with groupJid in query", async () => {
     const mockFetch = makeFetchMock(200, { message: "ok" });
     vi.stubGlobal("fetch", mockFetch);
-    const client = new EvolutionClient(BASE_CONFIG);
+    const client = makeClient();
     await client.delete(`/group/leaveGroup/test-instance?groupJid=${encodeURIComponent("120363@g.us")}`);
     const [url, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
     expect(url).toContain("/group/leaveGroup/test-instance");
@@ -433,7 +447,7 @@ describe("EvolutionClient", () => {
   it("POST update_group_setting — sends action in body", async () => {
     const mockFetch = makeFetchMock(200, { message: "ok" });
     vi.stubGlobal("fetch", mockFetch);
-    const client = new EvolutionClient(BASE_CONFIG);
+    const client = makeClient();
     await client.post(
       `/group/updateSetting/test-instance?groupJid=${encodeURIComponent("120363@g.us")}`,
       { action: "announcement" }
@@ -448,7 +462,7 @@ describe("EvolutionClient", () => {
   it("GET connection_state — correct URL, GET method", async () => {
     const mockFetch = makeFetchMock(200, { instance: { state: "open" } });
     vi.stubGlobal("fetch", mockFetch);
-    const client = new EvolutionClient(BASE_CONFIG);
+    const client = makeClient();
     await client.get("/instance/connectionState/test-instance");
     const [url, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("http://localhost:8080/instance/connectionState/test-instance");
@@ -458,7 +472,7 @@ describe("EvolutionClient", () => {
   it("POST restart_instance — correct URL, POST with empty body", async () => {
     const mockFetch = makeFetchMock(200, { message: "ok" });
     vi.stubGlobal("fetch", mockFetch);
-    const client = new EvolutionClient(BASE_CONFIG);
+    const client = makeClient();
     await client.post("/instance/restart/test-instance", {});
     const [url, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("http://localhost:8080/instance/restart/test-instance");
@@ -468,7 +482,7 @@ describe("EvolutionClient", () => {
   it("DELETE logout_instance — DELETE method, no body", async () => {
     const mockFetch = makeFetchMock(200, { message: "ok" });
     vi.stubGlobal("fetch", mockFetch);
-    const client = new EvolutionClient(BASE_CONFIG);
+    const client = makeClient();
     await client.delete("/instance/logout/test-instance");
     const [url, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("http://localhost:8080/instance/logout/test-instance");
@@ -478,7 +492,7 @@ describe("EvolutionClient", () => {
   it("GET get_settings — correct URL", async () => {
     const mockFetch = makeFetchMock(200, { rejectCall: false });
     vi.stubGlobal("fetch", mockFetch);
-    const client = new EvolutionClient(BASE_CONFIG);
+    const client = makeClient();
     await client.get("/settings/find/test-instance");
     const [url] = mockFetch.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("http://localhost:8080/settings/find/test-instance");
@@ -487,7 +501,7 @@ describe("EvolutionClient", () => {
   it("POST set_settings — sends only provided fields", async () => {
     const mockFetch = makeFetchMock(200, { message: "ok" });
     vi.stubGlobal("fetch", mockFetch);
-    const client = new EvolutionClient(BASE_CONFIG);
+    const client = makeClient();
     await client.post("/settings/set/test-instance", { rejectCall: true, alwaysOnline: true });
     const [url, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("http://localhost:8080/settings/set/test-instance");
@@ -501,7 +515,7 @@ describe("EvolutionClient", () => {
   it("GET find_webhook — correct URL, GET method", async () => {
     const mockFetch = makeFetchMock(200, { webhook: { enabled: true, url: "https://example.com" } });
     vi.stubGlobal("fetch", mockFetch);
-    const client = new EvolutionClient(BASE_CONFIG);
+    const client = makeClient();
     await client.get("/webhook/find/test-instance");
     const [url, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("http://localhost:8080/webhook/find/test-instance");
@@ -511,7 +525,7 @@ describe("EvolutionClient", () => {
   it("POST set_webhook — wraps config in webhook key", async () => {
     const mockFetch = makeFetchMock(200, { message: "ok" });
     vi.stubGlobal("fetch", mockFetch);
-    const client = new EvolutionClient(BASE_CONFIG);
+    const client = makeClient();
     await client.post("/webhook/set/test-instance", {
       webhook: {
         enabled: true,
@@ -531,7 +545,7 @@ describe("EvolutionClient", () => {
   it("GET find_labels — correct URL", async () => {
     const mockFetch = makeFetchMock(200, []);
     vi.stubGlobal("fetch", mockFetch);
-    const client = new EvolutionClient(BASE_CONFIG);
+    const client = makeClient();
     await client.get("/label/findLabels/test-instance");
     const [url] = mockFetch.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("http://localhost:8080/label/findLabels/test-instance");
@@ -540,7 +554,7 @@ describe("EvolutionClient", () => {
   it("POST handle_label — sends action, number, labelId", async () => {
     const mockFetch = makeFetchMock(200, { message: "ok" });
     vi.stubGlobal("fetch", mockFetch);
-    const client = new EvolutionClient(BASE_CONFIG);
+    const client = makeClient();
     await client.post("/label/handleLabel/test-instance", {
       number: "5511999999999",
       labelId: "label-1",
@@ -790,7 +804,7 @@ describe("EvolutionClient", () => {
   it("POST update_block_status — sends number and status", async () => {
     const mockFetch = makeFetchMock(200, { message: "ok" });
     vi.stubGlobal("fetch", mockFetch);
-    const client = new EvolutionClient(BASE_CONFIG);
+    const client = makeClient();
     await client.post("/chat/updateBlockStatus/test-instance", {
       number: "5511999999999",
       status: "block",
@@ -811,7 +825,7 @@ describe("EvolutionClient", () => {
     ];
     const mockFetch = makeFetchMock(200, allGroups);
     vi.stubGlobal("fetch", mockFetch);
-    const client = new EvolutionClient(BASE_CONFIG);
+    const client = makeClient();
     const data = await client.get<typeof allGroups>(
       "/group/fetchAllGroups/test-instance?getParticipants=false"
     );
@@ -838,7 +852,7 @@ describe("EvolutionClient", () => {
     }));
     const mockFetch = makeFetchMock(200, allGroups);
     vi.stubGlobal("fetch", mockFetch);
-    const client = new EvolutionClient(BASE_CONFIG);
+    const client = makeClient();
     const data = await client.get<typeof allGroups>(
       "/group/fetchAllGroups/test-instance?getParticipants=false"
     );
@@ -860,7 +874,7 @@ describe("EvolutionClient", () => {
     ];
     const mockFetch = makeFetchMock(200, allChats);
     vi.stubGlobal("fetch", mockFetch);
-    const client = new EvolutionClient(BASE_CONFIG);
+    const client = makeClient();
     const raw = await client.post("/chat/findChats/test-instance", { limit: 50, offset: 0 }) as typeof allChats;
 
     // Simulate tool handler: search without where
@@ -890,7 +904,7 @@ describe("EvolutionClient", () => {
     }));
     const mockFetch = makeFetchMock(200, allChats);
     vi.stubGlobal("fetch", mockFetch);
-    const client = new EvolutionClient(BASE_CONFIG);
+    const client = makeClient();
     const raw = await client.post("/chat/findChats/test-instance", { limit: 5, offset: 0 }) as typeof allChats;
 
     // Simulate tool handler client-side safety cap
@@ -907,7 +921,7 @@ describe("EvolutionClient", () => {
     ];
     const mockFetch = makeFetchMock(200, returnedChats);
     vi.stubGlobal("fetch", mockFetch);
-    const client = new EvolutionClient(BASE_CONFIG);
+    const client = makeClient();
 
     const customWhere = { remoteJid: { contains: "5511" } };
     const raw = await client.post("/chat/findChats/test-instance", {
@@ -927,5 +941,23 @@ describe("EvolutionClient", () => {
     }));
     expect(normalized[0]!.pushName).toBe("Alice");
     expect(Object.keys(normalized[0]!)).not.toContain("secret");
+  });
+});
+
+describe("Evolution message response envelopes", () => {
+  it.each([[], { messages: [] }, { messages: { records: [], total: 0 } }])(
+    "accepts supported empty envelope %#",
+    (data) => {
+      expect(extractMessages(data)).toEqual([]);
+    }
+  );
+
+  it("preserves paginated v2 message records", () => {
+    const records = [{ key: { id: "fixture-id" }, message: { conversation: "reply" } }];
+    expect(extractMessages({ messages: { records, total: 1 } })).toEqual(records);
+  });
+
+  it("does not disguise an unexpected response as empty history", () => {
+    expect(() => extractMessages({ error: "invalid" })).toThrow();
   });
 });
